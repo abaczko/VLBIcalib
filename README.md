@@ -22,6 +22,4 @@ modules:
 
  - helper_functions.py: A collection of functions needed in aips_tasks, e.g. downloading a file or catching output from the command line.
 
- - hrk.py: a few functions provided by Hans Kloeckner. Mostly to load data or print out some information.
-
  - extract_info_sn.py: Returns information saved in an SN table produced by fring. This function is needed by derive_solint() in fucntions.py
