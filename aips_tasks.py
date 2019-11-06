@@ -1,6 +1,9 @@
 #!/usr/bin/env ParselTongue
 #
-#This module contains several functions to pass commands to AIPS via ParselTongue
+'''
+This module contains several functions to pass commands to AIPS via ParselTongue.
+These are mainly running several aips tasks with a given set of input parameters.
+'''
 #
 import AIPS
 from AIPSTV import AIPSTV
@@ -10,18 +13,49 @@ from AIPSData import AIPSUVData, AIPSImage,AIPSCat
 from string import split,find
 from Wizardry.AIPSData import AIPSUVData as WizAIPSUVData
 import time 
-import __main__ as main
-#print('OP for main calibration are loaded')
-import observation_parameters as OP
-import functions as AF
-import helper_functions as HF
-import logging
+import numpy as np
+from astropy.table import Table
 
-date = OP.date
-local_dir = OP.local_dir
+import __main__ as main
+import helper_functions as HF
+
+import logging
 logger = logging.getLogger(__name__)
-#logfile = open(OP.tasklog,'a')
-aips_out = OP.aips_out+'/'
+
+if os.path.isfile('observation_parameters.py'):
+	import observation_parameters as OP
+	aips_out = OP.aips_out+'/'
+else:
+	sys.stdout.write('''Not using a local observation_parameters.py file.
+	I asume you are using aips_taks.py as module
+	and are not planning to use it in scope of the quasi-pipeline.
+	A local directory aips_out will be created to place outputs there.''')
+	aips_out=os.getcwd()+'/aips_out/'
+#
+def print_history(uvdata,writeout=False):
+	'''
+	To print the history lines to a variable
+	'''
+	history=uvdata.history
+	if writeout:
+		of = open(aips_out+'history.txt','w')
+		for row in history:
+			of.write(row+'\n')
+		of.close()
+	else:
+		return history
+#
+def data_exists(uvdata):
+	'''
+	Test whether data loaded really exists.
+	AIPSUV() will not give an error itself if the data tried to be loaded does nto exist.
+	'''
+	if uvdata.exists()==True:
+		logger.info('Data (%s,%s,%d,%d) exists. Assume it is already TB sorted (INDXR has been run).\n',uvdata.name,uvdata.klass,uvdata.disk,uvdata.seq)
+	else:
+		logger.error("Something went wrong Data does not exist")
+		sys.exit()
+	logger.info("Data Loaded: (%s, %s, %d, %d)\n", uvdata.name,uvdata.klass,uvdata.disk,uvdata.seq)
 #
 
 def getndata(diskno,catno):
@@ -33,6 +67,7 @@ def getndata(diskno,catno):
 	proxy   = AIPS.disks[diskno].proxy()
 	disk    = proxy.AIPSCat.cat(AIPS.disks[diskno].disk, AIPS.userno)
 	catalog = [disk[i] for i in range(len(disk)) if disk[i]['cno']==catno]
+	print [catalog[0]['name'],catalog[0]['klass'],diskno,catalog[0]['seq']]
 	return [catalog[0]['name'],catalog[0]['klass'],diskno,catalog[0]['seq']]
 #
 def extd(uvdata,ine=False,inv=False):
@@ -48,11 +83,34 @@ def extd(uvdata,ine=False,inv=False):
 	logger.info('deleted Table %s%d  \n',ine,inv)
 	sys.stdout.write('deleted Table {0} {1}\n'.format(ine,inv))
 #
+def loadata(infile,outname,outclass='None',outdisk=1,outseq=0,wt=0,clint=0.1,digicor=-1,doconcat=-1):
+	logger.info('Loading uvdata %s to catalog [%s,%s,%d,%d]\n',infile,outname,outclass,outdisk,outseq)
+	
+	"""
+	Load a FITS file into the AIPS disk
+	  
+	wt = Flagging threshold based on weights [range: 0 to 1 (flag all data)]
+	"""
+	#
+	fitld						= AIPSTask('FITLD')
+	fitld.datain		= str(infile)
+	fitld.douvcomp  = -1
+	fitld.digicor   = digicor
+	fitld.doconcat  = doconcat
+	fitld.wtthresh  = wt
+	fitld.outname		= outname
+	fitld.clint			= clint
+	if outclass != 'None':
+		fitld.outclass  = outclass
+	fitld.outdisk		= int(outdisk)
+	fitld.outseq		= int(outseq)
+	fitld.go()
+	return[fitld.outname,fitld.outclass,int(fitld.outdisk),int(fitld.outseq)]
 ##
 #
 def lwpla(uvdata, outfile, inv=None, plv=1):
 	HF.delete_file(aips_out+outfile)
-	'''Must set indata, outfile'''
+	#Must set indata, outfile
   #assert (indata != None, outfile != None)
 
 	lwpla = AIPSTask('lwpla')
@@ -75,7 +133,6 @@ def lwpla(uvdata, outfile, inv=None, plv=1):
 		logger.info('PL files written to plotfile %s.\n PL files will be deleted now.\n',outfile)
 		extd(uvdata,ine='PL',inv=-1)
 	
-#  return inputs
 #
 def prtan(uvdata):
 	outprint = aips_out+uvdata.name+'_prtan.txt'
@@ -141,9 +198,18 @@ def get_header_info(uvdata):
 		d[ctype[n]]['crota']=crota[n]
 	return d
 	
+def max_ch(uvdata):
+	'''
+	returns the maximum channel number
+	'''
+	# to return the channel number of the experiment
+	header=get_header_info(uvdata)
+	return header['FREQ']['naxis']
+
+
 def possm(uvdata, aparm=[0,1,0,0,-200,200,0,0,1,0], solint=-1, sources =[], timer =[0,0,0,0],
       codetype='A&P', nplots=9, stokes='HALF', antennas=[], baseline =[],
-      docal=1, gainu=0, doband=0, bpv=0, flagv=0, dotv=-1,bchan=1,echan=0,plotname=None,**kwds):
+      docal=1, gainu=0, doband=0, bpv=0, fgv=0, dotv=-1,bchan=1,echan=0,plotname=None):
 	
 	uvdata.zap_table('PL',-1)	
 	sys.stdout.write('Produce possm plots for antennas = {0}'.format(antennas))
@@ -158,7 +224,7 @@ def possm(uvdata, aparm=[0,1,0,0,-200,200,0,0,1,0], solint=-1, sources =[], time
 	possm.baseline[1:] = baseline
 	possm.docalib = docal
 	possm.gainuse = gainu
-	possm.flagver = flagv
+	possm.flagver = fgv
 	possm.doband = doband
 	possm.bpver = bpv
 	possm.bchan = bchan
@@ -181,12 +247,12 @@ def possm(uvdata, aparm=[0,1,0,0,-200,200,0,0,1,0], solint=-1, sources =[], time
 	elif len(sources) >=1:
 		sourcelist='_'.join(set(sources))
 		#sourcelist='AC'
-	if flagv==-1:
+	if fgv==-1:
 		outfile='{0}_possm_CL{1}_{2}.ps'.format(uvdata.name,CLtable,sourcelist)
-	elif flagv>-1:
-		if flagv==0:
-			flagv=uvdata.table_highver('FG')
-		outfile='{0}_possm_CL{1}_FG{3}_{2}.ps'.format(uvdata.name,CLtable,sourcelist,flagv)
+	elif fgv>-1:
+		if fgv==0:
+			fgv=uvdata.table_highver('FG')
+		outfile='{0}_possm_CL{1}_FG{3}_{2}.ps'.format(uvdata.name,CLtable,sourcelist,fgv)
 	if bpv>0:
 		outfile=outfile.split('.')[0]+'BP'+str(bpv)+'.ps'
 	if plotname:
@@ -256,7 +322,6 @@ def antab(uvdata,infile,tyv=1,gcv=1):
 	antab.gcver = gcv
 	HF.print_inp_to_log(antab,'ANTAB')
 	antab()
-	#return  inputs
 #
 def accor(uvdata,solint=-10):
 	accor = AIPSTask('accor')
@@ -264,12 +329,10 @@ def accor(uvdata,solint=-10):
 	accor.solint = solint #scan-average
 	HF.print_inp_to_log(accor,'ACCOR')
 	accor()
-#  return inputs
 #
 def acscl(uvdata,gainu=0,bpv=1,doband=1):
 	acscl = AIPSTask('acscl')
 	acscl.indata = uvdata
-	#acscl.timer[1:] = [0]
 	acscl.solint = 0
 	acscl.docalib = 1
 	acscl.gainuse =gainu
@@ -277,26 +340,24 @@ def acscl(uvdata,gainu=0,bpv=1,doband=1):
 	acscl.doband=doband
 	HF.print_inp_to_log(acscl,'ACSCL')
 	acscl()
-	#return inputs
 #
 def setjy(uvdata):
 	setjy = AIPSTask('setjy')
 	setjy.inputs()
 	setjy.indata = uvdata
 	setjy.zerosp[1:] = [1,0]
-	HF.print_inp_to_log(setjy,'SETIY')
+	HF.print_inp_to_log(setjy,'SETJY')
 	setjy()
 #
 def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='',tau0=[0],savelog=False):
 	apcal = AIPSTask('apcal')
-	if savelog:
-		apcal.log = open(aips_out+uvdata.name+'_APCAL_fit.log','w')
+	if type(savelog)==str:
+		apcal.log = open(savelog,'w')
 	apcal.indata = uvdata
 	apcal.tyver = tyv
 	apcal.gcver = gcv
 	apcal.dotv = -1
 	apcal.solint = 0
-	#apcal.timer = []
 	apcal.opcode = opcode
 	apcal.tau0[1:] = tau0
 	apcal.invers = inv
@@ -307,21 +368,23 @@ def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='
 	HF.print_inp_to_log(apcal,'APCAL')
 	apcal()
 	if apcal.opcode != '':
-		outfile = 'APCAL_opacity_correction.ps'
+		outfile = uvdata.name+'APCAL_opacity_correction.ps'
 		lwpla(uvdata, outfile)
-	#return inputs
 #
-def snsmo(uvdata,smotype='BOTH',samptype='MWF',bparm=[],doblank=-1,inv=0,outv=0,refant=0,dobtween=0):
+def snsmo(uvdata,antennas=[],npiece=0,smotype='BOTH',samptype='MWF',bparm=[],cparm=[],doblank=-1,inv=0,outv=0,refant=0,dobtween=0):
 	snsmo = AIPSTask('snsmo')
-	snsmo.indata =uvdata
-	snsmo.samptype = samptype
-	snsmo.smotype = smotype
+	snsmo.indata		= uvdata
+	snsmo.samptype	= samptype
+	snsmo.antennas[1:] = antennas
+	snsmo.npiece		= npiece
+	snsmo.smotype		= smotype
 	snsmo.bparm[1:] = bparm
-	snsmo.doblank = doblank #check if 1 or -1 is needed
-	snsmo.inver = inv
-	snsmo.outver = outv
-	snsmo.refant = refant
-	snsmo.dobtween = dobtween
+	snsmo.cparm[1:] = cparm
+	snsmo.doblank		= doblank 
+	snsmo.inver			= inv
+	snsmo.outver		= outv
+	snsmo.refant		= refant
+	snsmo.dobtween	= dobtween
 	HF.print_inp_to_log(snsmo,'SNSMO')
 	snsmo()
 	#
@@ -330,9 +393,7 @@ def eops(uvdata):
 		eops_file='./usno_finals.erp'
 	else:
 		valid = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
-		# According to http://www.aips.nrao.edu/index.shtml the goddad webserver is down. On the webside a copy can be downoaded. The path to the copy is set below.
-		#eops_file = HF.download_file('https://gemini.gsfc.nasa.gov/solve_save/usno_finals.erp','./usno_finals.erp')
-		eops_file = HF.download_file('ftp://ftp.lbo.us/pub/staff/wbrisken/EOP/usno_finals.erp','./usno_finals.erp')
+		eops_file = HF.download_file('ftp://cddis.gsfc.nasa.gov/vlbi/gsfc/ancillary/solve_apriori/usno_finals.erp','./usno_finals.erp')
 		if eops_file == False:
 			msg = "Run EOP with presonal 'usno_finals.erp'?" 
 			choice = None
@@ -362,7 +423,6 @@ def eops(uvdata):
 	clcor.infile = './usno_finals.erp'
 	HF.print_inp_to_log(clcor,'CLCOR EPOS')
 	clcor()
-	#return inputs
 #
 def pang(uvdata,suba=0):
 	clcor = AIPSTask('clcor')
@@ -374,7 +434,6 @@ def pang(uvdata,suba=0):
 	clcor.clcorprm[1] = 1
 	HF.print_inp_to_log(clcor,'CLCOR PANG')
 	clcor()
-	#return inputs
 #
 def indxr(uvdata,clint=0.1):
 	indxr = AIPSTask('indxr')
@@ -382,21 +441,30 @@ def indxr(uvdata,clint=0.1):
 	indxr.cparm[3] = clint
 	HF.print_inp_to_log(indxr,'INDXR')
 	indxr()
-	#return inputs
 	#
 def msort(uvdata):
 	sys.stdout.write('Sorting data by runing MSORT.')
+
 	msort = AIPSTask('msort')
 	msort.outdata = uvdata
 	msort.outclass = 'MSORT'
-	msort.indata = uvdata
+	msort.indata	= uvdata
+#
+	data_rows=[ac for ac in AIPSCat(uvdata.disk)[uvdata.disk]]
+	t	= Table(rows=data_rows)
+	tn= t[t['name']=='MB005_3MM']
+	tn= tn[tn['klass']=='MSORT']
+	if msort.outseq == np.max(tn['seq']):
+		msort.outseq = msort.outseq+1
+	#
 	HF.print_inp_to_log(msort,'MSORT')
 	msort()
-	return AIPSUVData(uvdata.name,'MSORT',uvdata.disk,uvdata.seq)
+	return [msort.outname,'MSORT',int(msort.outdisk),int(msort.outseq)]
 #
-def fring_global(uvdata,cals=[],suba=0,refant=0,antennas=[],timer=[0,0,0,1],solint=4,solsub=0,solmin=0,aparm=[1,0,0,0,1,2,4.5,0,1,0],dparm=[1,400,400,0],snv=0,gainu=0,docal=1,search=[],echan=0,bchan=1,bpv=-1,doband=-1,dofit=[0]):
+def fring_global(uvdata,cals=[],fgv=0,suba=0,refant=0,antennas=[],timer=[0,0,0,1],solint=4,solsub=0,solmin=0,aparm=[1,0,0,0,1,2,4.5,0,1,0],dparm=[1,400,400,0],snv=0,gainu=0,docal=1,search=[],echan=0,bchan=1,bpv=-1,doband=-1,dofit=[0],get2n=False,flux=0):
 	fring = AIPSTask('fring')
 	fring.indata = uvdata
+	fring.flagver = fgv
 	fring.calsour[1:] = cals
 	fring.timerang[1:] = timer
 	fring.solint = solint
@@ -416,18 +484,19 @@ def fring_global(uvdata,cals=[],suba=0,refant=0,antennas=[],timer=[0,0,0,1],soli
 	fring.search[1:] = search
 	fring.bchan = bchan
 	fring.echan = echan
+	if get2n:
+		fring.in2data=AIPSImage(*get2n)
+		fring.flux=flux
 	fring.inputs()
-	time.sleep(5)
 	HF.print_inp_to_log(fring,'FRING')
 	fring()
-	#return inputs
 #
-def fring_instr(uvdata,flagv=0,suba=0,cals=[],refant=0,antennas=[],timer =[0,0,0,0],solint=-1,aparm=[2,0,0,0,0,2,0,0,0],dparm=[1,400,400,0,0,0,0,1,1],snv=0,gainu=0,docal=1,search=[],echan=0,bchan=1,bpv=-1,doband=-1):
+def fring_instr(uvdata,fgv=0,suba=0,cals=[],refant=0,antennas=[],timer =[0,0,0,0],solint=-1,aparm=[2,0,0,0,0,2,0,0,0],dparm=[1,400,400,0,0,0,0,1,1],snv=0,gainu=0,docal=1,search=[],echan=0,bchan=1,bpv=-1,doband=-1):
 	fring = AIPSTask('fring')
 	fring.indata = uvdata
 	fring.calsour[1:] = cals
 	fring.timerang[1:] = timer
-	fring.flagver = flagv
+	fring.flagver = fgv
 	fring.solint = solint
 	fring.subarray = suba
 	fring.antennas[1:] = antennas
@@ -443,16 +512,36 @@ def fring_instr(uvdata,flagv=0,suba=0,cals=[],refant=0,antennas=[],timer =[0,0,0
 	fring.bchan = bchan
 	fring.echan = echan
 	fring.inputs()
-	time.sleep(5)
 	HF.print_inp_to_log(fring,'FRING')
 	fring()
-	#return inputs
 #
-def clcal(uvdata,sources=[],cals=[],antennas =[],opcode='CALP',interpol='AMBG',gainv=0,gainu=0,snv=0,refant=0,doblank=0,dobtween=1,smotype='',samptype='',suba = -32000,inv=0):
+def imlod(outn,outd,datain):
+	imlod	= AIPSTask('imlod')
+	imlod.log= open('imlod.log','w')
+	imlod.outname	=outn
+	imlod.outclass= 'CMAP'
+	imlod.outseq	= 0
+	imlod.outdisk	= outd
+	imlod.datain	= datain
+	HF.print_inp_to_log(imlod,'IMLOD')
+	imlod()
+	
+	lines=[]
+	with open('imlod.log','r') as f:
+		for line in f:
+			if line.startswith('IMLOD'):
+				lines.append(line)
+		for l in lines:
+			if l.find('CNO')!=-1:
+				catnr = l.split()[-1]
+	return int(catnr)
+
+def clcal(uvdata,timer=[0,0,0,0],sources=[],cals=[],antennas =[],opcode='CALP',interpol='AMBG',gainv=0,gainu=0,snv=0,refant=0,doblank=0,dobtween=1,smotype='',samptype='',suba = -32000,inv=0):
 	clcal = AIPSTask('clcal')
 	clcal.indata = uvdata
 	clcal.sources[1:] = sources
 	clcal.calsour[1:] = cals
+	clcal.timer[1:] = timer
 	clcal.opcode = opcode
 	clcal.subarray = suba
 	clcal.interpol = interpol
@@ -468,14 +557,14 @@ def clcal(uvdata,sources=[],cals=[],antennas =[],opcode='CALP',interpol='AMBG',g
 	clcal.refant = refant
 	HF.print_inp_to_log(clcal,'CLCAL')
 	clcal()
-	#return inputs
 #
-def bpass (uvdata,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=[0],ichansel=[],timer=[],fgv=1):
+def bpass (uvdata,bpv=-1,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=[0],ichansel=[],timer=[],fgv=1):
 	bpass = AIPSTask('bpass')
 	bpass.indata = uvdata
 	bpass.calsour[1:] = cals
 	bpass.antennas[1:] = antennas
 	bpass.gainuse = gainu
+	bpass.bpver	= bpv
 	bpass.flagver = fgv
 	bpass.solint = solint
 	bpass.refant = refant
@@ -487,12 +576,8 @@ def bpass (uvdata,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=[0],ich
 		bpass.ichansel[n][1:] = ichansel[i]
 # form of 'ichansel': [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
 	bpass.bpassprm[1:] = bpassprm
-	#for row in inputs:
-	# print row
-	#raw_input("Press Enter to continue...")
 	HF.print_inp_to_log(bpass,'BPASS')
 	bpass()
-	#return inputs
 #
 def split(uvdata,sources=[],outd=1,aparm=[2,1,1,1,0],antennas=[],fgv=0,bpv=0,doband=-1,gainu=0,bchan=1,echan=0,bif=1,eif=0,stokes='HALF'):
 	split = AIPSTask('split')
@@ -513,7 +598,6 @@ def split(uvdata,sources=[],outd=1,aparm=[2,1,1,1,0],antennas=[],fgv=0,bpv=0,dob
 	split.gainuse = gainu
 	HF.print_inp_to_log(split,'SPLIT')
 	split()
-	#return  inputs
 #
 def uvflg_flagfile(uvdata,intext,outfgv =1,opcode= 'FLAG'):
 	uvflg = AIPSTask('uvflg')
@@ -523,7 +607,6 @@ def uvflg_flagfile(uvdata,intext,outfgv =1,opcode= 'FLAG'):
 	uvflg.opcode= opcode
 	HF.print_inp_to_log(uvflg,'UVFLG')
 	uvflg()
-	#return inputs
 #
 def uvflg(uvdata,stokes='',timer=[0,0,0,0],antennas=[],bchan=1,outfgv=0,echan=0,bif=1,eif=0,reason='edged'):
 	uvflg = AIPSTask('uvflg')
@@ -540,7 +623,6 @@ def uvflg(uvdata,stokes='',timer=[0,0,0,0],antennas=[],bchan=1,outfgv=0,echan=0,
 	uvflg.reason =reason
 	HF.print_inp_to_log(uvflg,'UVFLG')
 	uvflg()
-	#return inputs
 #
 def swpol(uvdata,antennas):
 	swpol = AIPSTask('swpol')
@@ -607,7 +689,7 @@ def fittp(imdata,outfile=''):
 		outfile=uvdata.header['object']
 	while os.path.isfile(aips_out+outfile):
 		outname=outfile.split('.')[0]
-		filetype=outfile.split('.')[1]
+		filetype=outfile.split('.')[-1]
 		outname=outname.split('_')
 		try:
 			outname[-1]= str(int(outname[-1])+1)

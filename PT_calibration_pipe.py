@@ -18,7 +18,6 @@ In addition the following private modules must be called, either by adding their
 location to the local Pythonpath or by putting them also in the same directory
 as this file:
  functions
- hrk
  aips_tasks
 
 The scripts will automatically create a directory 'aips_out', if not existing
@@ -34,7 +33,6 @@ from astropy.table import Table
 # Load personal functions
 #
 import functions as AF
-import hrk as hrk
 import aips_tasks as AT
 #
 ##################################################################
@@ -102,9 +100,9 @@ print AIPSCat(OP.outdisk) #list the catalogs on the desired disk
 if OP.load_data:
 	if len(OP.uvrawdatafile)>1:
 		for files in OP.uvrawdatafile:
-			uvdata_catalog = hrk.loadata(files,OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor,doconcat=1)
+			uvdata_catalog = AT.loadata(files,OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor,doconcat=1)
 	else:
-		uvdata_catalog = hrk.loadata(OP.uvrawdatafile[0],OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor)
+		uvdata_catalog = AT.loadata(OP.uvrawdatafile[0],OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor)
 	uvdata = AIPSUVData(*uvdata_catalog)
 	AF.data_exists(uvdata)
 elif not OP.load_data and OP.dataPreProcessing:
@@ -126,8 +124,10 @@ if OP.dataPreProcessing:
 			sys.stdout.write("Something went wrong with Task('SWPOL')")
 			logger.error("Something went wrong with Task('SWPOL')")
 			sys.exit()
-	AT.msort(uvdata)
-	msortdata = [uvdata.name,'MSORT',uvdata.disk,uvdata.seq]
+	msortdata = AT.msort(uvdata)
+	if msortdata[3]<uvdata.seq:
+		logger.error('Something went wrong with Task MSORT \n')
+		sys.exit()
 	msortuv = AIPSUVData(*msortdata)
 	if msortuv.exists()==True:
 		logger.info('Msort data exists. Assume it is already TB sorted (INDXR has been run).  Will set local variable uvdata to point towards msorted data.\n')
@@ -136,8 +136,6 @@ if OP.dataPreProcessing:
 		logger.error('Something went wrong with Task MSORT \n')
 		sys.exit()
 	AT.indxr(uvdata)
-	if OP.tabed:
-		AT.tabed(uvdata,ine=OP.ine,optype=OP.optype,keyvalue=OP.keyvalue,aparm=OP.aparm,inv=OP.inv,outv=OP.outv)
 else:
 	logger.info('No data Pre Processing (SWPOL,TABED)')
 	msortdata = [OP.outname,'MSORT',OP.outdisk,OP.outseq]
@@ -152,8 +150,13 @@ else:
   sys.exit()
 
 logger.info('Data Loaded: (%s, %s, %d, %d)\n',uvdata.name,uvdata.klass,uvdata.disk,uvdata.seq)
+if OP.tabed:
+	AT.tabed(uvdata,ine=OP.tabed_ine,optype=OP.tabed_optype,keyvalue=OP.tabed_keyvalue,aparm=OP.tabed_aparm,inv=OP.tabed_inv,outv=OP.tabed_outv)
 
-if OP.printBasicInfo: #listr,imhead,possm,prtan,snplt
+if OP.printBasicInfo:
+	'''
+	Runs: listr,imhead,possm,prtan,snplt
+	'''
 	AF.print_basic_infos(uvdata)
 
 #
@@ -214,16 +217,16 @@ if OP.usuba:
 	AT.usuba(uvdata,opc='auto')
 	AT.indxr(uvdata) #To be on the safe side.
 #
-#if OP.runaccor:
-#	#uvdata.zap_table('SN',-1)
-#	AT.accor(uvdata)
-#	sn_hv = uvdata.table_highver('SN')
-#	
-#	AT.snsmo(uvdata,samptype='MWF',smotype='AMPL',bparm= [1.0,0],doblank = -1,inv=sn_hv,outv=sn_hv+1,refant=AF.get_antenna_number(uvdata,OP.refant_global))
-#	AT.extd(uvdata,'SN',sn_hv)
-#	AT.tacop(uvdata,ine='SN',inv=sn_hv+1,outv=sn_hv)
-#	AT.extd(uvdata,'SN',sn_hv+1)
-#	AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='AMP',stokes='',sources=[],opcode='ALST',plotname='smoothed')
+if OP.runaccor:
+	#uvdata.zap_table('SN',-1)
+	AT.accor(uvdata)
+	sn_hv = uvdata.table_highver('SN')
+	
+	AT.snsmo(uvdata,samptype='MWF',smotype='AMPL',bparm=[1.0,0],dobtween=1,doblank=-1,inv=sn_hv,outv=sn_hv+1,refant=AF.get_antenna_number(uvdata,OP.refant_global))
+	AT.extd(uvdata,'SN',sn_hv)
+	AT.tacop(uvdata,ine='SN',inv=sn_hv+1,outv=sn_hv)
+	AT.extd(uvdata,'SN',sn_hv+1)
+	AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='AMP',stokes='',sources=[],opcode='ALST',plotname='smoothed')
 
 if OP.correct_pang:
 	AT.pang(uvdata)
@@ -236,8 +239,8 @@ if OP.runaccor:
 	AT.snplt(uvdata,ine='CL',inv=uvdata.table_highver('CL'),optype='AMP',stokes='',sources=[],opcode='ALIF',plotname='ACCOR')
 	cl_first_cal_steps = uvdata.table_highver('CL')
 	sn_first_cal_steps = uvdata.table_highver('SN')
-	#AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps-1,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
-	#AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
+	AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps-1,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
+	AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
 #
 
 if_exit=False
@@ -308,32 +311,56 @@ if OP.runpccor:
 	logger.info('Pccor was run. The following antennas did not had PCal information:%s'%', '.join(antennas_missing))
 #
 if OP.manual_phase_cal:
-	AF.do_manual_phasecal(uvdata,OP.mpc_calibrator,OP.mpc_antennas_fring,OP.mpc_antennas_clcal,OP.mpc_refant,OP.mpc_timer,OP.mpc_aparm,OP.mpc_dparm,OP.mpc_solint,uvdata.table_highver('FG'))
+	AF.do_manual_phasecal(uvdata,OP.mpc_calibrator,OP.mpc_antennas_fring,OP.mpc_antennas_clcal,OP.mpc_refant,OP.mpc_timer,OP.mpc_aparm,OP.mpc_dparm,OP.mpc_solint,uvdata.table_highver('FG'))	
+	AT.possm(uvdata,sources=OP.calibrators,gainu=uvdata.table_highver('CL'),aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal_After_manual_phasecal',antennas=OP.possm_antennas)
 #
+if OP.setjy:
+	AT.setjy(uvdata)
+
 if OP.bandpass_correction:
 	uvdata.zap_table('BP',-1)
 	cl_hv = uvdata.table_highver('CL')
-	ichansel=[]
-	mch=AF.max_ch(uvdata)
-	for i in range(8):
-		ichansel.append([3,mch-3,1,i])
-	AT.bpass(uvdata,gainu=cl_hv,solint=0,refant=OP.bp_refan,cals=[OP.bp_cal],ichansel=ichansel,bpassprm=OP.bp_bpassprm,fgv=-1)
-	AT.possm(uvdata,sources=[OP.bp_cal],bpv=1,doband=1,flagv=-1,gainu=cl_hv,aparm=[0,0,0,0,0,0,0,2,1],plotname='BP1_Bandpass')
-	AT.possm(uvdata,sources=OP.calibrators,bpv=1,doband=1,timer=[0,18,0,0,0,20,0,0],flagv=-1,solint=-1,gainu= cl_hv,plotname='BP1_ACal')
-	AT.bpass(uvdata,gainu=cl_hv,solint=0,refant=OP.bp_refan,cals=[OP.bp_cal],ichansel=ichansel,bpassprm=OP.bp_bpassprm,fgv=1)
-	AT.possm(uvdata,sources=[OP.bp_cal],bpv=2,doband=1,flagv=1,gainu=cl_hv,aparm=[0,0,0,0,0,0,0,2,1],plotname='BP2_Bandpass')
-	AT.possm(uvdata,sources=OP.calibrators,bpv=2,doband=1,timer=[0,18,0,0,0,20,0,0],flagv=1,solint=-1,gainu= cl_hv,plotname='BP2_ACal')
-
+	if not OP.bp_ichansel:
+		mch=AF.max_ch(uvdata)
+		ichansel=[]
+		for i in range(8):
+			ichansel.append([3,mch-3,1,i+1])
+	AT.bpass(uvdata,antennas=OP.antennas,gainu=cl_hv,solint=0,refant=OP.bp_refan,cals=OP.bp_cal,ichansel=ichansel,bpassprm=OP.bp_bpassprm,fgv=0)
+	AT.possm(uvdata,sources=OP.bp_cal,bpv=1,doband=2,fgv=0,gainu=cl_hv,aparm=[0,0,0,0,0,0,0,2,1],plotname='BP_Bandpass')
+#	AT.possm(uvdata,sources=OP.calibrators,bpv=1,doband=2,timer=OP.bp_timer,fgv=0,solint=-1,gainu= cl_hv,plotname='BP_ACal')
 
 #
 if OP.runacscl:
-	AT.acscl(uvdata,doband=1,bpv=1)
+	AT.acscl(uvdata,doband=2,bpv=1)
 	cl_hv = uvdata.table_highver('CL')
 	sn_hv = uvdata.table_highver('SN')
-	AT.snsmo(uvdata,samptype='MWF',smotype='AMPL',doblank=-1,dobtween=1,inv=sn_hv,outv=sn_hv+1,refant=Op.refant)
-	AT.clcal(uvdata,ine='SN',gainv=cl_hv,gainu=cl_hv+1,snv=sn_hv+1,refant=OP.refant,doblank=1,interpol='self')
-	AT.snplt(uvdata,ine='SN',inv=sn_hv+1,optype='AMP',stokes='',sources=[],opcode='ALST',plotname='acscl')
+	AT.snsmo(uvdata,samptype='MWF',smotype='AMPL',doblank=-1,dobtween=1,inv=sn_hv,outv=sn_hv+1,refant=OP.bp_refan)
+	AT.clcal(uvdata,gainv=cl_hv,gainu=cl_hv+1,snv=uvdata.table_highver('SN'),refant=OP.bp_refan,doblank=1,interpol='self')
+	AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='AMP',stokes='',sources=[],opcode='ALST',plotname='acscl')
 #
+
+if OP.runapcal:
+	if OP.make_fring_tests:
+		cl_hv = cl_af
+	else:
+		cl_hv=[uvdata.table_highver('CL')]
+	cl_aa=[]
+	if OP.opacity:
+		AF.do_apcal(uvdata,aparm=OP.apcal_aparm,tyv=OP.apcal_tyv,dofit=OP.apcal_dofit,tau0=OP.apcal_tau0,trecvr=OP.apcal_trecvr,opcode=OP.apcal_opcode,calin=OP.apcal_calin,savelog=True)
+	else:
+		AT.apcal(uvdata)
+	for clh in cl_hv:	
+		sn_hv = uvdata.table_highver('SN')
+		if OP.smooth_apcal_sn:
+			AT.snsmo(uvdata,antennas=OP.antennas,smotype='BOTH',samptype='BOX',bparm=[1,0],doblank=0,inv=sn_hv,outv=0,refant=AF.get_antenna_number(uvdata,OP.refant_global),dobtween=0)
+			sn_hv = uvdata.table_highver('SN')
+		AT.clcal(uvdata,gainv=clh,gainu=0,snv=sn_hv,refant=AF.get_antenna_number(uvdata,OP.refant_global),doblank=1,interpol='SELF')
+		AT.snplt(uvdata,ine='SN',inv=sn_hv,optype='AMP',stokes='HALF',opcode='ALSI',plotname='apcal')
+		logger.info('APCAL finalized. Please check output files:\nSN%d, CL%d',sn_hv,uvdata.table_highver('CL'))
+		cl_aa.append(uvdata.table_highver('CL'))
+#	AT.possm(uvdata,gainu=uvdata.table_highver('CL'),aparm=[0,1,0,5,-200,200,0,0,1,0])
+
+
 if OP.get_best_solint:
 	if OP.st_gainu:
 		cl_hv=OP.st_gainu
@@ -343,58 +370,83 @@ if OP.get_best_solint:
 		AF.derive_solint(uvdata,timer=AF.scantime(uvdata,OP.st_scan[i]),refant=OP.st_refant[i],gainu=cl_hv,plotname=OP.st_plotname[i])
 
 if OP.global_fring:
+	for clv in range(40,uvdata.table_highver('CL')):
+			uvdata.zap_table('CL',clv)
+	for snv in range(45,uvdata.table_highver('SN')):
+			uvdata.zap_table('SN',snv)
 	if OP.gf_scan:
 		OP.gf_timer=[]
 		for i in OP.gf_scan:
 			OP.gf_timer=AF.scantime(uvdata,i)
-	cl_hv_af=AF.do_global_fring(uvdata,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,gainu=OP.gf_gainu)
+	if OP.get2n:
+		imfile=AIPSImage(OP.cmap_name,'CMAP',uvdata.disk,1)
+		if imfile.exists():
+			image=[OP.cmap_name,'CMAP',uvdata.disk,1]
+			logger.info('Using clean image')
+	if OP.use_bp:
+		cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,bpv=1,doband=2,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,get2n=OP.get2n)
+	else:
+		cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,get2n=OP.get2n)
+
 	logger.info('CL tables produced in global fring are:{}'.format(cl_hv_af))
 	if OP.make_fring_tests:
 		cl_af = cl_hv_af
-#
-if OP.runapcal:
-	if OP.make_fring_tests:
-		cl_hv = cl_af
-	else:
-		cl_hv=[uvdata.table_highver('CL')]
-	cl_aa=[]
-#	AT.setjy(uvdata)
-	if OP.opacity:
-		AF.do_apcal(uvdata,aparm=OP.apcal_aparm,tyv=OP.apcal_tyv,dofit=OP.apcal_dofit,tau0=OP.apcal_tau0,trecvr=OP.apcal_trecvr,opcode=OP.apcal_opcode,calin=OP.apcal_calin,savelog=True)
-	else:
-		AT.apcal(uvdata)
-	for clh in cl_hv:	
-		sn_hv = uvdata.table_highver('SN')
-		AT.clcal(uvdata,gainv=clh,gainu=0,snv=sn_hv,refant=5,doblank=1,interpol='SELF')
-		AT.snplt(uvdata,ine='SN',inv=sn_hv,optype='AMP',stokes='HALF',opcode='ALSI',plotname='apcal')
-		logger.info('APCAL finalized. Please check output files:\nSN%d, CL%d',sn_hv,uvdata.table_highver('CL'))
-		cl_aa.append(uvdata.table_highver('CL'))
-#	AT.possm(uvdata,gainu=uvdata.table_highver('CL'),aparm=[0,1,0,5,-200,200,0,0,1,0])
-
+	#AT.possm(uvdata,sources=[],gainu=uvdata.table_highver('CL'),aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='All',antennas=OP.possm_antennas)
 
 #
+
+if OP.complexbp:
+	cl_hv = uvdata.table_highver('CL')
+	
+	mch=AT.max_ch(uvdata)
+	ichansel=[]
+	for i in range(8):
+		ichansel.append([3,mch-3,1,i+1])
+	AT.bpass(uvdata,antennas=OP.antennas,gainu=cl_hv,solint=0,refant=OP.bp_refan,cals=[OP.bp_cal],ichansel=ichansel,bpassprm=OP.bp_bpassprm,fgv=0)
+
+#	AT.bpass(uvdata,antennas=OP.antennas,gainu=cl_hv,solint=0,refant=OP.bp_refan,cals=[OP.bp_cal],ichansel=ichansel,bpassprm=[0,0,0,0,0,0,0,0,1,3,0],fgv=0)
+	AT.possm(uvdata,sources=[OP.bp_cal],bpv=uvdata.table_highver('BP'),doband=2,fgv=0,gainu=cl_hv,aparm=[0,0,0,0,0,0,0,2,1],plotname='BP_new_Bandpass')
+	AT.possm(uvdata,sources=OP.calibrators,bpv=uvdata.table_highver('BP'),doband=2,fgv=1,solint=-1,gainu= cl_hv,aparm=[0,0,0,0,-200,200,0,0,1,0],plotname='BP_new_ACal')
+
+
 if OP.finalize:
 	if OP.make_fring_tests:
 		cl_hv = cl_aa
 	else:
 		cl_hv = [uvdata.table_highver('CL')]
 	for clh in cl_hv:
-		AT.split(uvdata,sources=[],gainu=clh,fgv=1,antennas=OP.split_antennas,outd=OP.outdisk,aparm=[3,1,1,1,0])
+		if OP.use_bp:
+			bpv=uvdata.table_highver('BP')
+			AT.split(uvdata,bpv=bpv,doband=2,sources=[],gainu=clh,fgv=1,antennas=OP.split_antennas,outd=OP.outdisk,aparm=OP.split_aparm)
+		else:
+			AT.split(uvdata,sources=[],gainu=clh,fgv=1,antennas=OP.split_antennas,outd=OP.outdisk,aparm=OP.split_aparm)
 		data_rows=[ac for ac in AIPSCat(OP.outdisk)[OP.outdisk]]
 		t=Table(rows=data_rows)
-		for source in uvdata.sources:
-			imcat=t[np.where(t['name']==source)]
+		sources=[]
+		if sources==[]:
+			sources = uvdata.sources
+		for source in sources:
+			imcat=t[t['name']==source]
 			if len(imcat)>0:
-				imcat=imcat[np.where(imcat['seq']==np.max(imcat['seq']))]
+				imcat=imcat[imcat['seq']==np.max(imcat['seq'])]
 				imdata=[str(imcat['name'][0]),str(imcat['klass'][0]),OP.outdisk,int(imcat['seq'][0])]
 				AT.fittp(imdata,outfile=imdata[0]+'_'+OP.date+'_CL'+str(clh)+'.uvfits')	
 
 if OP.make_final_possm_plots:
 	cl_hv=uvdata.table_highver('CL')
-	AT.possm(uvdata,sources=[],gainu=cl_hv,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='All',antennas=OP.possm_antennas)
-	AT.possm(uvdata,sources=OP.calibrators,gainu=cl_hv-2,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
-	AT.possm(uvdata,sources=OP.calibrators,gainu=cl_hv-1,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
-	AT.possm(uvdata,sources=OP.calibrators,gainu=3,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
+	if OP.use_bp:
+		bpv=uvdata.table_highver('BP')
+		#bpv=1
+		AT.possm(uvdata,bpv=bpv,doband=2,sources=[],gainu=cl_hv,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='All',antennas=OP.possm_antennas)
+		#AT.possm(uvdata,bpv=1,doband=2,sources=OP.calibrators,gainu=cl_hv-6,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
+		#AT.possm(uvdata,bpv=1,doband=2,sources=OP.calibrators,gainu=cl_hv-7,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
+#		AT.possm(uvdata,bpv=1,doband=2,sources=OP.calibrators,gainu=cl_hv,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal_bp1',antennas=OP.possm_antennas)
+	else:
+		AT.possm(uvdata,sources=[],gainu=cl_hv,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='All',antennas=OP.possm_antennas)
+	#	AT.possm(uvdata,sources=[],gainu=cl_hv-4,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='All',antennas=OP.possm_antennas)
+	#	AT.possm(uvdata,bpv=0,doband=-1,sources=OP.calibrators,gainu=cl_hv-2,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
+	#	AT.possm(uvdata,bpv=0,doband=-1,sources=OP.calibrators,gainu=cl_hv-3,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
+	#AT.possm(uvdata,sources=OP.calibrators,gainu=3,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
 	#AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps-1,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
 	#AT.possm(uvdata,sources=[],timer=[0,0,0,0],solint=-1,gainu= cl_first_cal_steps,aparm=[0,1,0,0,-200,200,0,1,1,0],plotname='AC')
 

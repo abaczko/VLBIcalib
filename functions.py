@@ -10,6 +10,7 @@ from cStringIO import StringIO
 #import time
 import os,sys,re
 import aips_tasks as AT
+import helper_functions as HF
 import numpy as np
 import __main__ as main
 from itertools import islice
@@ -290,7 +291,7 @@ def do_pccor(uvdata,antennas,calibrator,timer,refant):
 		uvdata.zap_table('PC',-1)
 		logger.info('loading pc table\n')
 		AT.pclod(uvdata,OP.pcfile)
-		PC_out=AT.prtab(uvdata,'PC',1,return_of)
+		PC_out=AT.prtab(uvdata,'PC',1,return_of=True)
 
 	cl_hv = uvdata.table_highver('CL')
 	sn_hv= uvdata.table_highver('SN')
@@ -300,7 +301,7 @@ def do_pccor(uvdata,antennas,calibrator,timer,refant):
 	AT.clcal(uvdata,sources=[],antennas=antennas,cals=[calibrator],gainv=cl_hv,gainu=cl_hv+1,snv=sn_hv+1,refant=refant,interpol='2PT')
 	AT.possm(uvdata,sources=[calibrator],timer=timer,gainu=cl_hv+1)
 
-def do_manual_phasecal(uvdata,calibrator,antennas_fring,antennas_clcal,refant,timer,aparm,dparm,solint,flagv,suba=0):
+def do_manual_phasecal(uvdata,calibrator,antennas_fring,antennas_clcal,refant,timer,aparm,dparm,solint,fgv,suba=0):
 	'''
 	Do a manual phasecal to allign between IFs.
 	As input parameters list have to be given as noramlly several runs of fring are needed.
@@ -308,24 +309,23 @@ def do_manual_phasecal(uvdata,calibrator,antennas_fring,antennas_clcal,refant,ti
 	'''
 	cl_hv = uvdata.table_highver('CL')
 	sn_hv= uvdata.table_highver('SN')
-	#AT.possm(uvdata,sources=OP.calibrator,solint=-1,gainu= cl_hv)
 	#
 	if suba==0:
 		suba=[0 for i in range(len(refant))]
 	for i in range(len(calibrator)):
 		logger.info('#'*20)
 		logger.info('\nStarting Fring for manual-phase-cal #%d\n',i)
-		AT.fring_instr(uvdata,cals=[calibrator[i]],antennas=antennas_fring[i],timer=timer[i],refant=refant[i],aparm=aparm[i],dparm=dparm[i],solint=solint[i],suba=suba[i],flagv=flagv,gainu=cl_hv,snv=sn_hv+1)
-		AT.clcal(uvdata,sources=[],cals=[calibrator[i]],antennas=antennas_clcal[i],gainv=cl_hv,gainu=cl_hv+1,snv=sn_hv+1,refant=refant[i],interpol='2PT')
-		logger.info('Manual-phase-cal #%d done\nCurrent tables: CL%d, SN%d',i,cl_hv+1,sn_hv+1)
+		AT.fring_instr(uvdata,cals=[calibrator[i]],antennas=antennas_fring[i],timer=timer[i],refant=refant[i],aparm=aparm[i],dparm=dparm[i],solint=solint[i],suba=suba[i],fgv=fgv,gainu=cl_hv,snv=sn_hv+1)
+		AT.clcal(uvdata,sources=[],cals=[calibrator[i]],antennas=antennas_clcal[i],gainv=cl_hv,gainu=cl_hv+1,snv=sn_hv+1,refant=refant[i],interpol='2PT',doblank=1)
+		logger.info('Manual-phase-cal #%d done\nCurrent tables: CL%d, SN%d',i+1,cl_hv+1,sn_hv+1)
 		cl_hv = uvdata.table_highver('CL')
 		sn_hv= uvdata.table_highver('SN')
-		AT.possm(uvdata,sources=[calibrator[i]],timer=timer[i],antennas=antennas_fring[i],solint=-1,gainu= cl_hv,plotname='af')
-		AT.possm(uvdata,sources=[calibrator[i]],timer=timer[i],antennas=antennas_fring[i],solint=-1,gainu= cl_hv-1,plotname='bf')
+#		AT.possm(uvdata,sources=[calibrator[i]],timer=timer[i],antennas=antennas_fring[i],solint=solint[i],gainu= cl_hv,plotname='af')
+#		AT.possm(uvdata,sources=[calibrator[i]],timer=timer[i],antennas=antennas_fring[i],solint=solint[i],gainu= cl_hv-1,plotname='bf')
+#	AT.possm(uvdata,bpv=0,doband=-1,sources=OP.calibrators,gainu=cl_hv,aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal',antennas=OP.possm_antennas)
 
-	#AT.possm(uvdata,sources=OP.calibrators,solint=-1,gainu= cl_hv,plotoutname='ACal')
 #
-def	do_global_fring(uvdata,timer,aparm,dparm,refant,antennas=[0],interpol=['2PT'],search=[0],solint=[2],gainu=[0],suba=[0],dofit=[0],solmin=[0],solsub=[0],dosnsmo=False):
+def	do_global_fring(uvdata,timer,aparm,dparm,refant,cals=[[]],sources=[[]],antennas=[0],interpol=['2PT'],search=[0],solint=[2],gainu=[0],suba=[0],dofit=[0],solmin=[0],solsub=[0],dosnsmo=False,bpv=0,doband=-1,get2n=False):
 	'''
 	Applies everything normally done when running a global fring. 
 	There are many things, that are done differently for each observation, so this function probably has to be adjusted.
@@ -335,6 +335,14 @@ def	do_global_fring(uvdata,timer,aparm,dparm,refant,antennas=[0],interpol=['2PT'
 	'''
 	cl_hv = gainu[0]
 	cl_af = []
+	if get2n:
+	#	imfile=AIPSImage(OP.cmap_name,'CMAP',uvdata.disk,1)
+	#	if imfile.exists():
+	#		image=[OP.cmap_name,'CMAP',uvdata.disk,1]
+	#		logger.info('using clean image')
+	#	else:
+		catnr=AT.imlod(OP.cmap_name,uvdata.disk,OP.cmap_file)
+		image=AT.getndata(uvdata.disk,catnr)
 	if type(refant) is str:
 		for i in range(len(refant)):
 			refant[i]=get_antenna_number(uvdata,refant[i])
@@ -346,11 +354,32 @@ def	do_global_fring(uvdata,timer,aparm,dparm,refant,antennas=[0],interpol=['2PT'
 			if type(search[i][j]) is str:
 				search[i][j]=get_antenna_number(uvdata,search[i][j])
 		logger.info('run Fring for timer={}'.format(i))
-		AT.fring_global(uvdata,antennas=antennas[i],timer=timer[i],cals=[],dofit=dofit[i],refant=refant[i],suba=0,search=search[i],gainu=gainu[i],solint=solint[i],aparm=aparm[i],dparm=dparm[i])
+		if get2n:
+			logger.info('A clean model will be used')
+			AT.fring_global(uvdata,antennas=antennas[i],timer=timer[i],cals=cals[i],dofit=dofit[i],refant=refant[i],suba=0,search=search[i],gainu=gainu[i],solint=solint[i],aparm=aparm[i],dparm=dparm[i],bpv=bpv,doband=doband,get2n=image,flux=1e-4)
+		else:
+			AT.fring_global(uvdata,antennas=antennas[i],timer=timer[i],cals=cals[i],dofit=dofit[i],refant=refant[i],suba=0,search=search[i],gainu=gainu[i],solint=solint[i],aparm=aparm[i],dparm=dparm[i],bpv=bpv,doband=doband)
 		if dosnsmo:
-			AT.snsmo(uvdata,doblank=1,dobtween=0,smotype='VLBI',refant=refant[i],inv=uvdata.table_highver('SN'),outv=uvdata.table_highver('SN')+1,samptype='')
-		AT.clcal(uvdata,antennas=dofit[i],suba=0,gainv=gainu[i],gainu=uvdata.table_highver('CL')+1,snv=uvdata.table_highver('SN'),refant=refant[i],interpol=interpol[i],smotype='')
-		cl_af.append(uvdata.table_highver('CL'))
+			AT.snsmo(uvdata,doblank=OP.smooth_gf_doblank,dobtween=OP.smooth_gf_dobtween,smotype='VLDE',refant=refant[i],npiece=1,inv=uvdata.table_highver('SN'),outv=uvdata.table_highver('SN')+1,samptype='MWF',bparm=OP.smooth_gf_bparm,cparm=OP.smooth_gf_cparm)
+		AT.clcal(uvdata,cals=cals[i],sources=sources[i],timer=timer[i],dobtween=0,antennas=dofit[i],suba=0,gainv=gainu[i],gainu=uvdata.table_highver('CL')+1,snv=uvdata.table_highver('SN'),refant=refant[i],interpol=interpol[i],smotype='')
+		AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN')-1,optype='DELA',stokes='HALF',opcode='ALSI',plotname='dela_gf'+str(i)+'no_smooth')
+		AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN')-1,optype='RATE',stokes='HALF',opcode='ALSI',plotname='rate_gf'+str(i)+'no_smooth')
+		if dosnsmo:
+			AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='DELA',stokes='HALF',opcode='ALSI',plotname='dela_gf'+str(i)+'smooth')
+			AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='RATE',stokes='HALF',opcode='ALSI',plotname='rate_gf'+str(i)+'smooth')
+
+	try:
+		if OP.ad_mpc_cals:
+			for i in range(len(OP.ad_mpc_cals)):
+				logger.info('#'*20)
+				cl_hv=uvdata.table_highver('CL')
+				logger.info('\nStarting Fring for manual-phase-cal #%d\n',i)
+				AT.fring_instr(uvdata,cals=[OP.ad_mpc_cals[i]],antennas=OP.ad_mpc_antennas_fring[i],timer=OP.ad_mpc_timer[i],refant=OP.ad_mpc_refant[i],aparm=OP.ad_mpc_aparm[i],dparm=OP.ad_mpc_dparm[i],solint=OP.ad_mpc_solint[i],suba=0,fgv=0,gainu=cl_hv,snv=0,bpv=bpv,doband=doband)
+				AT.clcal(uvdata,sources=OP.ad_mpc_sources[i],cals=[OP.ad_mpc_cals[i]],antennas=OP.ad_mpc_antennas_clcal[i],gainv=cl_hv,gainu=cl_hv+1,snv=uvdata.table_highver('SN'),refant=OP.ad_mpc_refant[i],interpol='2PT',timer=OP.ad_mpc_timer_clcal[i])
+				logger.info('Manual-phase-cal #%d done\nCurrent tables: CL%d, SN%d',i+1,uvdata.table_highver('CL'),uvdata.table_highver('SN'))
+	except:
+		logger.warning('Something went wrong when doing additional manual phasecal. No additional manual phasecal done.\n Process without.')
+		#sys.exit()
 	return cl_af
 
 def get_apcal_fit(uvdata,apcal_log):
@@ -362,8 +391,11 @@ def get_apcal_fit(uvdata,apcal_log):
 
 	for line in lines:
 		if line.find('opac')!=-1:
-			re.sub(' +',' ',line)
+			line=re.sub(' +',' ',line)
 			temp=line.split()
+			if len(temp[3])<4:
+				temp[3]=temp[3]+temp[4]
+				temp.pop(4)
 			ant.append(temp[1])
 			pol.append(temp[2])
 			trec.append(temp[7])
@@ -376,17 +408,41 @@ def get_apcal_fit(uvdata,apcal_log):
 	for i in range(nn):
 		ind=np.where(apcal_fit['Antenna_no']==i+1)
 		if len(ind[0])!=0:
-			tau0[i]=float(np.round(np.mean(apcal_fit[ind]['Opac'])),3)
-			trecvr[2*i]=float(np.round(apcal_fit[ind]['Trec'][0]),2)
-			trecvr[(2*i)+1]=float(np.round(apcal_fit[ind]['Trec'][1]),2)
+			tau0[i]=float(np.round(np.mean(apcal_fit[ind]['Opac']),2))
+			if tau0[i]==0.0:
+				tau0[i]=0.1
+			trecvr[2*i]=float(np.round(apcal_fit[ind]['Trec'][0],2))
+			trecvr[(2*i)+1]=float(np.round(apcal_fit[ind]['Trec'][1],2))
 	return trecvr,tau0
 
 
-def do_apcal(uvdata,aparm=[0],tyv=1,dofit=[0],tau0=[0],trecvr=[0],opcode='',calin='',savelog=True):
-	apcal_log=aips_out+uvdata.name+'APCAL_fit.log'
-	trecvr2=trecvr[:]
-	tau02=tau0[:]
-	AT.apcal(uvdata, aparm=aparm,tyv=tyv,dofit=dofit,tau0=tau0,trecvr=trecvr,opcode=opcode,calin=calin,savelog=True)
+def do_apcal(uvdata,inv=0,aparm=[0],tyv=1,dofit=[0],tau0=[0],trecvr=[0],opcode='',calin='',savelog=True):
+	apcal_log=aips_out+uvdata.name+'_APCAL_fit.log'
+	apcal_log=HF.filename_append(apcal_log)
+	AT.apcal(uvdata, aparm=aparm,inv=inv,tyv=tyv,dofit=dofit,tau0=tau0,trecvr=trecvr,opcode=opcode,calin=calin,savelog=apcal_log)
 	trecvr,tau0= get_apcal_fit(uvdata,apcal_log)
+	apcal_log=HF.filename_append(apcal_log)
 	uvdata.zap_table('SN',uvdata.table_highver('SN'))
-	AT.apcal(uvdata, aparm=aparm,tyv=tyv,dofit=dofit,tau0=tau0,trecvr=trecvr,opcode=opcode,calin=calin,savelog=True)
+	AT.apcal(uvdata, aparm=aparm,inv=inv,tyv=tyv,dofit=dofit,tau0=tau0,trecvr=trecvr,opcode=opcode,calin=calin,savelog=apcal_log)
+	trecvr2,tau02=get_apcal_fit(uvdata,apcal_log)
+	trecvr_str=[','.join([str(x) for x in trecvr])]
+	tau0_str=[','.join([str(x) for x in tau0])]
+	trecvr2_str=[','.join([str(x) for x in trecvr2])]
+	tau02_str=[','.join([str(x) for x in tau02])]
+
+	logger.info('''
+	APCAL did run 2 times. First with assuming typical values of 
+	trecvr=100 and tau0=0.1 for all telescopes.
+	For the second run the fit values for both from the first run of
+	APCAL was used as input for tau0 and trecvr.
+					
+	First run fit:
+	%s
+	%s
+
+	Second run fit:
+	%s
+	%s
+						
+	SN%i produced.
+	''' %(trecvr_str,tau0_str,trecvr2_str,tau02_str,uvdata.table_highver('SN')))

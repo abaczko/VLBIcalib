@@ -7,17 +7,12 @@ By Anne baczko@mpifr-bonn.mpg.de
 # Python libraries ###
 ######################
 from cStringIO import StringIO
-#import time,os
 import urllib2
 import datetime as dt
 import __main__ as main
-import observation_parameters as OP
-#print('OP for main calibration are loaded')
 import sys,os
 import logging
 #####################################
-date = OP.date
-local_dir = OP.local_dir
 logger = logging.getLogger(__name__)
 
 
@@ -105,3 +100,16 @@ def day_of_date(date):
 	date=dt.datetime.strptime(date,'%Y-%m-%d')
 	new_year_day=dt.datetime(date.year,1,1)
 	return (date-new_year_day).days + 1
+
+def filename_append(outfile):
+	while os.path.isfile(outfile):
+		temp=outfile.split('.')
+		outname=temp[0]
+		filetype=temp[1]
+		outname=outname.split('_')
+		try:
+			outname[-1]= str(int(outname[-1])+1)
+		except ValueError:
+			outname.append('2')
+		outfile='_'.join(outname)+'.'+filetype
+	return outfile
