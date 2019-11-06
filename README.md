@@ -1,7 +1,8 @@
 # VLBIcalib
 This is a set of functions to ease the VLBI calibration by using ParselTongue.
 
-By Anne-Kathrin Baczko (akbaczko@gmail.com)
+By Anne-Kathrin Baczko (akbaczko@gmail.com).
+
 If you like to use these scripts for any publication, please let me know.
 
 It has only been tested on a small amount of datasets, so please give me any feedback you have to inprove ths scripts, or change them according to your needs.
