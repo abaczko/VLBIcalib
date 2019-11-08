@@ -1,5 +1,23 @@
 #!/usr/bin/env ParselTongue
 
+###########################################################################
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###########################################################################
+# Original author: Anne-Kathrin Baczko (MPIfR) baczko(AT)mpifr-bonn.mpg.de
+###########################################################################
+
 '''
 This is the main python file for semi-automatic calibration.
 
@@ -22,8 +40,6 @@ as this file:
 
 The scripts will automatically create a directory 'aips_out', if not existing
 where all output files are saved.
-
-By Anne-Kathrin Baczko (baczko@mpifr-bonn.mpg.de)
 '''
 import sys,os,json,logging,logging.config
 import observation_parameters as OP
