@@ -7,6 +7,12 @@ If you like to use these scripts for any publication, please let me know.
 
 It has only been tested on a small amount of datasets, so please give me any feedback you have to inprove ths scripts, or change them according to your needs.
 
+## Requirenments
+- astropy, numpy,
+- ParselTongue: for information about installing please see https://github.com/kernsuite-debian/parseltongue 
+- AIPS: in case you do not want to use AIPSLite (which comes with ParselTongue) but a local installation. Please see http://www.aips.nrao.edu/index.shtml for installation instructions
+- 
+## Submodules and functions
 Below is a short description of the individual files:
 
 - observation_parameters.py: Ideally this should be the only file that has to be changed for each observation. It contains paths to calibration files, other data, settings for the different calibration steps (as manual phase cal parameters timer,refant...) and variables that should be set either to 'True' or 'False'. These define what steps should be run. From loading the correlated fits files, writing Flag tables, doing manual phasecal, bandpass or applying SPLIT and FITTP.
