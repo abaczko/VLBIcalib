@@ -7,6 +7,8 @@ If you like to use these scripts for any publication, please let me know.
 
 It has only been tested on a small amount of datasets, so you may have to change them according to your needs.
 
+For the imported modules to be found the repository has to been added to the local PYTHONPATH variable.
+
 ## Requirenments
 - astropy, numpy
 - ParselTongue: for information about installation please see https://github.com/kernsuite-debian/parseltongue 
