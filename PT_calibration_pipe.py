@@ -48,8 +48,9 @@ from astropy.table import Table
 #
 # Load personal functions
 #
-import functions as AF
-import aips_tasks as AT
+import VLBIcalib.modules.functions as AF
+import VLBIcalib.modules.hrk as hrk
+import VLBIcalib.modules.aips_tasks as AT
 #
 ##################################################################
 # Setup logging ##
@@ -116,9 +117,9 @@ print AIPSCat(OP.outdisk) #list the catalogs on the desired disk
 if OP.load_data:
 	if len(OP.uvrawdatafile)>1:
 		for files in OP.uvrawdatafile:
-			uvdata_catalog = AT.loadata(files,OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor,doconcat=1)
+			uvdata_catalog = hrk.loadata(files,OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor,doconcat=1)
 	else:
-		uvdata_catalog = AT.loadata(OP.uvrawdatafile[0],OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor)
+		uvdata_catalog = hrk.loadata(OP.uvrawdatafile[0],OP.outname,OP.outclass,OP.outdisk,OP.outseq,clint=OP.cl_table_interval,digicor=OP.digicor)
 	uvdata = AIPSUVData(*uvdata_catalog)
 	AF.data_exists(uvdata)
 elif not OP.load_data and OP.dataPreProcessing:
@@ -141,9 +142,10 @@ if OP.dataPreProcessing:
 			logger.error("Something went wrong with Task('SWPOL')")
 			sys.exit()
 	msortdata = AT.msort(uvdata)
-	if msortdata[3]<uvdata.seq:
-		logger.error('Something went wrong with Task MSORT \n')
-		sys.exit()
+	msortdata = [OP.outname,'MSORT',OP.outdisk,OP.outseq]
+#	if msortdata[3]<uvdata.seq:
+#		logger.error('Something went wrong with Task MSORT \n')
+#		sys.exit()
 	msortuv = AIPSUVData(*msortdata)
 	if msortuv.exists()==True:
 		logger.info('Msort data exists. Assume it is already TB sorted (INDXR has been run).  Will set local variable uvdata to point towards msorted data.\n')
@@ -156,6 +158,7 @@ else:
 	logger.info('No data Pre Processing (SWPOL,TABED)')
 	msortdata = [OP.outname,'MSORT',OP.outdisk,OP.outseq]
 	msortuv = AIPSUVData(*msortdata)
+#	AT.indxr(msortuv)
 
 if msortuv.exists()==True:
 	logger.info('Msort data exists. Assume it is already TB sorted (INDXR has been run).  Will set local variable uvdata to point towards msorted data.\n')
@@ -167,7 +170,15 @@ else:
 
 logger.info('Data Loaded: (%s, %s, %d, %d)\n',uvdata.name,uvdata.klass,uvdata.disk,uvdata.seq)
 if OP.tabed:
-	AT.tabed(uvdata,ine=OP.tabed_ine,optype=OP.tabed_optype,keyvalue=OP.tabed_keyvalue,aparm=OP.tabed_aparm,inv=OP.tabed_inv,outv=OP.tabed_outv)
+	if type(OP.tabed)==int:
+		OP.tabed_ine			= [OP.tabed_ine]			
+		OP.tabed_optype		= [OP.tabed_optype]		
+		OP.tabed_keyvalue = [OP.tabed_keyvalue] 
+		OP.tabed_aparm		= [OP.tabed_aparm]
+		OP.tabed_inv			= [OP.tabed_inv]	
+		OP.tabed_outv			= [OP.tabed_outv]	
+	for i,tabed in enumerate(OP.tabed_ine): 
+		AT.tabed(uvdata,ine=OP.tabed_ine[i],optype=OP.tabed_optype[i],keyvalue=OP.tabed_keyvalue[i],aparm=OP.tabed_aparm[i],inv=OP.tabed_inv[i],outv=OP.tabed_outv[i])
 
 if OP.printBasicInfo:
 	'''
@@ -195,6 +206,13 @@ if OP.load_antab:
 if OP.get_vlba_cal:
 	AT.vlog(uvdata,OP.vlbacal,OP.vlog_out)
 # 
+
+if OP.usuba:
+	AT.usuba(uvdata,opcode='AUTO')
+	AT.indxr(uvdata) #To be on the safe side.
+	AT.snplt(uvdata,ine='CL',inv=1,optype='PHAS',stokes='',sources=[],opcode='ALST',suba=-1,plotname='after_usuba+in')
+	AT.listr(uvdata,outfile='MB005_w_2_list_after_usuba.txt')
+
 if OP.flag_outer_ch:
 	uvdata.zap_table('FG',-1)
 	AT.uvflg(uvdata,bif=1,eif=0,bchan=1,echan=3,outfgv=1)
@@ -229,10 +247,6 @@ if any([OP.load_flag_info,OP.flag_outer_ch,OP.uvflg_additional]):
 else:
 	logger.info('Seems no FG table has been written now or something else went wrong.\n')
 
-if OP.usuba:
-	AT.usuba(uvdata,opc='auto')
-	AT.indxr(uvdata) #To be on the safe side.
-#
 if OP.runaccor:
 	#uvdata.zap_table('SN',-1)
 	AT.accor(uvdata)
@@ -242,10 +256,22 @@ if OP.runaccor:
 	AT.extd(uvdata,'SN',sn_hv)
 	AT.tacop(uvdata,ine='SN',inv=sn_hv+1,outv=sn_hv)
 	AT.extd(uvdata,'SN',sn_hv+1)
-	AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='AMP',stokes='',sources=[],opcode='ALST',plotname='smoothed')
+	AT.snplt(uvdata,ine='SN',inv=uvdata.table_highver('SN'),optype='AMP',stokes='',sources=[],opcode='ALST',plotname='accor_smoothed')
 
 if OP.correct_pang:
-	AT.pang(uvdata)
+	if OP.usuba:
+		maxan = uvdata.table_highver('AN')
+		gainv = uvdata.table_highver('CL')
+		gainu = gainv+1
+		for i in range(maxan):
+			AT.pang(uvdata,gainv=gainv,gainu=gainu,suba=i+1)
+			gainv = gainu
+	else:
+		AT.pang(uvdata)
+	AT.snplt(uvdata,ine='CL',inv=uvdata.table_highver('CL')-1,optype='PHAS',stokes='',sources=[],opcode='ALIF',plotname='before_pang')
+	AT.snplt(uvdata,ine='CL',inv=uvdata.table_highver('CL'),optype='PHAS',stokes='',sources=[],opcode='ALIF',plotname='after_pang')
+
+
 #
 if OP.correct_eop:
 	AT.eops(uvdata)
@@ -327,8 +353,8 @@ if OP.runpccor:
 	logger.info('Pccor was run. The following antennas did not had PCal information:%s'%', '.join(antennas_missing))
 #
 if OP.manual_phase_cal:
-	AF.do_manual_phasecal(uvdata,OP.mpc_calibrator,OP.mpc_antennas_fring,OP.mpc_antennas_clcal,OP.mpc_refant,OP.mpc_timer,OP.mpc_aparm,OP.mpc_dparm,OP.mpc_solint,uvdata.table_highver('FG'))	
-	AT.possm(uvdata,sources=OP.calibrators,gainu=uvdata.table_highver('CL'),aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal_After_manual_phasecal',antennas=OP.possm_antennas)
+	AF.do_manual_phasecal(uvdata,OP.mpc_calibrator,OP.mpc_antennas_fring,OP.mpc_antennas_clcal,OP.mpc_refant,OP.mpc_timer,OP.mpc_aparm,OP.mpc_dparm,OP.mpc_solint,uvdata.table_highver('FG'),OP.mpc_suba)	
+#	AT.possm(uvdata,sources=OP.calibrators,gainu=uvdata.table_highver('CL'),aparm=[0,1,0,0,-200,200,0,0,1,0],plotname='AllCal_After_mp',antennas=OP.possm_antennas)
 #
 if OP.setjy:
 	AT.setjy(uvdata)
@@ -386,23 +412,31 @@ if OP.get_best_solint:
 		AF.derive_solint(uvdata,timer=AF.scantime(uvdata,OP.st_scan[i]),refant=OP.st_refant[i],gainu=cl_hv,plotname=OP.st_plotname[i])
 
 if OP.global_fring:
-	for clv in range(40,uvdata.table_highver('CL')):
-			uvdata.zap_table('CL',clv)
-	for snv in range(45,uvdata.table_highver('SN')):
-			uvdata.zap_table('SN',snv)
+#	for clv in range(40,uvdata.table_highver('CL')):
+#			uvdata.zap_table('CL',clv)
+#	for snv in range(45,uvdata.table_highver('SN')):
+#			uvdata.zap_table('SN',snv)
+	get2n = False
 	if OP.gf_scan:
 		OP.gf_timer=[]
 		for i in OP.gf_scan:
 			OP.gf_timer=AF.scantime(uvdata,i)
 	if OP.get2n:
-		imfile=AIPSImage(OP.cmap_name,'CMAP',uvdata.disk,1)
-		if imfile.exists():
-			image=[OP.cmap_name,'CMAP',uvdata.disk,1]
-			logger.info('Using clean image')
+	#	imfile=AIPSImage(OP.cmap_name,'CMAP',uvdata.disk,1)
+	#	if imfile.exists():
+	#		get2n=[OP.cmap_name,'CMAP',uvdata.disk,1]
+	#		logger.info('Using clean image')
+	#	else:
+		catnr=AT.imlod(OP.cmap_name,uvdata.disk,OP.cmap_file)
+		get2n=AT.getndata(uvdata.disk,catnr)
 	if OP.use_bp:
-		cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,bpv=1,doband=2,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,get2n=OP.get2n)
+		if OP.smooth_gf_sn:
+			cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,bpv=1,doband=2,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,solsub=OP.gf_solsub,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,smopa=[OP.smooth_gf_doblank,OP.smooth_gf_dobtween,OP.smooth_gf_bparm,OP.smooth_gf_cparm],get2n=get2n)
+		else:
+			cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,bpv=1,doband=2,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,solsub=OP.gf_solsub,gainu=OP.gf_gainu,get2n=get2n)
+
 	else:
-		cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,get2n=OP.get2n)
+		cl_hv_af=AF.do_global_fring(uvdata,cals=OP.gf_cals,sources=OP.gf_sources,timer=OP.gf_timer,dofit=OP.gf_dofit,antennas=OP.gf_antennas,aparm=OP.gf_aparm,dparm=OP.gf_dparm,refant=OP.gf_refant,interpol=OP.gf_interpol,search=OP.gf_search,solint=OP.gf_solint,solsub=OP.gf_solsub,gainu=OP.gf_gainu,dosnsmo=OP.smooth_gf_sn,get2n=get2n)
 
 	logger.info('CL tables produced in global fring are:{}'.format(cl_hv_af))
 	if OP.make_fring_tests:

@@ -77,7 +77,7 @@ calibrators 	= ['XXX']	# specify all calibrators
 target		= 'XXX' # target source
 cal_instr	= 'XXX'	# phase-cal calibrator
 cal_bp		= ['XXX'] 	# bandpass calibrator(s)
-refant_global	= 'XX' 	# typical reference antenna
+refant_global	= 'XX' 	# typical reference antenna, e.g. 'GB'
 antennas    	= [0]#If an antennas should not be used for the whole calibration or only a set of them, put it here
 #
 #####################
@@ -100,6 +100,9 @@ pcal_calibrator = cal_instr #Specify a calibrator for Pulsecal if desired
 pcal_timer 	= []
 pcal_antennas	= []
 #
+## For accor
+accor_smooth_ant=[14] #set to False if all antennas schould be smoothed
+
 ####################
 # additional flags #
 ####################
@@ -135,12 +138,12 @@ swpol_antennas=[0]
 # Parameters for tabed #
 ########################
 # Here as example to correct mounting for PV, which was antennas 14
-tabed_ine	= 'AN'
-tabed_optype	= 'REPL'
-tabed_keyvalue	= [5,0]
-tabed_aparm	= [5,0,0,4,4,14,0]
-tabed_inv	= 1
-tabed_outv	= 1
+tabed_ine		= ['AN']
+tabed_optype	= ['REPL']
+tabed_keyvalue	= [[5,0]]
+tabed_aparm	= [[5,0,0,4,4,14,0]]
+tabed_inv		= [1]
+tabed_outv	= [1]
 
 #########################################
 # Parameters for manual phase cal steps #
@@ -162,11 +165,12 @@ mpc_antennas_fring= []
 mpc_antennas_clcal= []
 mpc_refant        = []
 mpc_timer         = []
-mpc_aparm         = []
-mpc_dparm         = []
+mpc_suba					= []
+mpc_aparm         = [[2,0,0,0,0,2,5,0]]
+mpc_dparm         = [[1,500,500,1,0,0,1,1,0,0]]
 mpc_solint        = []
-#mpc_suba         = []
 
+## Just a test if you filled in parameters for each run of manual phasecal
 if len(mpc_calibrator)==len(mpc_antennas_fring)==len(mpc_antennas_clcal)==len(mpc_refant)==len(mpc_timer)==len(mpc_aparm)==len(mpc_dparm)==len(mpc_solint):
 	sys.stdout.write('Parameters for manual phase cal set correctly\n')
 else:
@@ -179,7 +183,7 @@ else:
 Parameters for finding the best solution interval. 
 If this is run plot files are created. There can be made tests on several scans in a row, therefore please give parameters as arrays.
 run by setting get_best_solint=True at the end of the file.
-This functionality has not been tested very extensively. Be careful
+This functionality has not been tested very extensively, but should give some hint on the best solution interval to use in global fring.
 '''
 st_refant	= [14,14,14,5,5,5] #reference antenna to be used
 st_gainu	= 11	#CL table to be used
@@ -209,11 +213,14 @@ gf_dofit	= [[0]] #fit for all antennas
 gf_search	= [['GB','PV','FD','EB','LA','ON']]
 gf_interpol	= ['2PT']
 gf_solint	= [4.0]
+gf_solsub   = [3]
 gf_gainu	= [0] # to use the highest number CL table during fringe
-
+gf_doblank  = [1]
+gf_dobtween = [0]
 #####################################
 # If a clean image should be loaded #
 #####################################
+# This does not work sooo good at the moment
 get2n		= False # if an image file should be used
 cmap_file 	= aips_if+''
 cmap_name 	= ''
@@ -227,7 +234,7 @@ Please check input parameters carefully.
 smooth_gf_sn	= False
 smooth_gf_bparm	=[0,0.05,0.05,0.05,0]
 smooth_gf_cparm	=[0,0,0.05,0.05,0,0,0,100,500,0]
-smooth_gf_doblank     = -1
+smooth_gf_doblank     = 1
 smooth_gf_dobtween    = -1
 
 '''
@@ -258,8 +265,9 @@ else:
 # Parameters for bandpass #
 ###########################
 bp_refan	= 5
-bp_cal		= cal_bp
+bp_cal		= cal_bp #you can also use a list of sources, e.g. ['3C84','0224+069']
 bp_ichansel	= False
+bp_timer    = [0,0,0,0]
 bp_bpassprm 	= [1,2,0,0,1,0,0,0,1,6,0]
 #
 ###########################
@@ -302,7 +310,7 @@ correct_pang		= False # correct for PANG
 correct_eop		= False # correct for EOP. The file will automatically be downloaded. Currently the Goddard server is down, therefore a copy as linked from aips.nrao is used.
 runaccor		= False # to run ACCOR
 clear_manual_phasecal	= False # to clear all tables after ACCOR to start delay calibration over again. The history file will be searched to find the last SN and CL tables as were produced by ACCOR and deletes all SN and CL tables higher then these found
-# Parameters for from which cl and sn table on tables should be deleted
+# Parameters from which cl and sn table  should be deleted
 # if the above assumption of finding the first SN and CL tables produced by manual phasecal does nto work as suspected, the last CL and SN tables that should not be deleted can be specified here, typically this should not be needed
 cl_cal_before_mp	= False 
 sn_cal_before_mp	= False
@@ -315,11 +323,11 @@ setjy               	= False # run setij?
 bandpass_correction	= False # apply a bandpass
 use_bp              	= False # if the bandpass table should be used
 runacscl		= False # runacscl as recommended in the COOKBOOK after applying a bandpass
-get_best_solint		= False # run test function to get the best solution interval
 runapcal            	= False # run apcal
 smooth_apcal_sn     	= False # smooth SN table resulting from antab
 opacity             	= False # fit for opacity
 complexbp           	= False # estimate a complex bandpass
+get_best_solint		= False # run test function to get the best solution interval
 global_fring		= False # do global fring
 make_fring_tests	= False # if different settings for global fringing should be tested, set this parameter. If APCAL and Finalize (split and fittp) is 'TRUE' this will be done for each CL table resulting from the different fring settings. Just give a list to the 'gf_' parameters specifying the different settings for each fring run. If make_fring_tests='False' only the highest CL table will be further processed, even if a list of entries is given to 'gf_'
 finalize		= False # finalize the calibration, by applying SPLIT and FITTP
