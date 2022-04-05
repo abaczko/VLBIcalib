@@ -130,12 +130,13 @@ def accor(uvdata,solint=-10):
 	accor()
 #  return inputs
 #
-def acscl(uvdata,gainu=0,bpv=1,doband=1):
+def acscl(uvdata,gainu=0,bpv=1,doband=1,suba=0):
 	acscl = AIPSTask('acscl')
 	acscl.indata = uvdata
 	#acscl.timer[1:] = [0]
 	acscl.solint = 0
 	acscl.docalib = 1
+	acscl.subarray = suba
 	acscl.gainuse =gainu
 	acscl.bpver=bpv
 	acscl.doband=doband
@@ -153,7 +154,7 @@ def antab(uvdata,infile,tyv=1,gcv=1):
 	antab()
 	#return  inputs
 #
-def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='',tau0=[0],savelog=False,solint=0):
+def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='',tau0=[0],suba=0,savelog=False,solint=0):
 	apcal = AIPSTask('apcal')
 	if type(savelog)==str:
 		apcal.log = open(savelog,'w')
@@ -167,6 +168,7 @@ def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='
 	apcal.tau0[1:] = tau0
 	apcal.invers = inv
 	apcal.calin = calin
+	apcal.subarray = suba
 	apcal.dofit[1:] = dofit
 	apcal.trecvr[1:] = trecvr
 	apcal.aparm[1:] = aparm
@@ -177,7 +179,7 @@ def apcal(uvdata,tyv=0,gcv=0,opcode='',aparm=[],dofit=[],inv=0,trecvr=[],calin='
 		lwpla(uvdata, outfile)
 	#return inputs
 #
-def bpass (uvdata,bpv=-1,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=[0],ichansel=[],timer=[],fgv=1):
+def bpass (uvdata,bpv=-1,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=[0],ichansel=[],timer=[],suba=0,fgv=1):
 	bpass = AIPSTask('bpass')
 	bpass.indata = uvdata
 	bpass.calsour[1:] = cals
@@ -186,6 +188,7 @@ def bpass (uvdata,bpv=-1,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=
 	bpass.bpver	= bpv
 	bpass.flagver = fgv
 	bpass.solint = solint
+	bpass.subarray = suba
 	bpass.refant = refant
 	bpass.docalib = 1
 	bpass.timer[1:] = timer
@@ -409,11 +412,13 @@ def lgeom(imdata,outn,outd,outseq=0,aparm=[0,0,0,0,0,0,0,0,0],blc=[0],trc=[0]):
 	print(catnr)
 	return int(catnr)
 #
-def listr(uvdata,bif=0,eif=0,optype='SCAN',ine='CL',inv=1,sources=[],dparm=[]):
+def listr(uvdata,bif=0,eif=0,optype='SCAN',ine='CL',inv=1,sources=[],dparm=[],outfile=False):
 	if len(dparm)>0:
 		outprint = aips_out+uvdata.name+'_listr_'+optype+'dparm1='+str(dparm[0])+'.txt'
 	else:
 		outprint = aips_out+uvdata.name+'_listr_'+optype+'.txt'
+	if outfile:
+		outprint = aips_out+outfile
 	HF.delete_file(outprint)
 	listr = AIPSTask('listr')
 	listr.indata = uvdata
@@ -471,13 +476,17 @@ def msort(uvdata):
 	msort()
 	return AIPSUVData(uvdata.name,'MSORT',uvdata.disk,uvdata.seq)
 #
-def pang(uvdata,suba=0):
+def pang(uvdata,suba=0,gainv=False,gainu=False):
+	if not gainv:
+		gainv = uvdata.table_highver('CL')
+	if not gainu:
+		gainu = gainv+1
 	clcor = AIPSTask('clcor')
 	clcor.indata = uvdata
 	clcor.opcode = 'PANG'
 	clcor.subarray = suba
-	clcor.gainv = uvdata.table_highver('CL')
-	clcor.gainu = uvdata.table_highver('CL')+1
+	clcor.gainv = gainv
+	clcor.gainu = gainu
 	clcor.clcorprm[1] = 1
 	HF.print_inp_to_log(clcor,'CLCOR PANG')
 	clcor()
@@ -500,7 +509,7 @@ def pclod(uvdata,calin):
 	pclod()
 #
 def possm(uvdata, aparm=[0,1,0,0,-200,200,0,0,1,0], solint=-1, sources =[], timer =[0,0,0,0],
-      codetype='A&P', nplots=9, stokes='HALF', antennas=[], baseline =[],
+      codetype='A&P', nplots=9, stokes='HALF', antennas=[], baseline =[],suba=0,
       docal=1, gainu=0, doband=0, bpv=0, fgv=0, dotv=-1,bchan=1,echan=0,plotname=None,**kwds):
 	
 	uvdata.zap_table('PL',-1)	
@@ -510,6 +519,7 @@ def possm(uvdata, aparm=[0,1,0,0,-200,200,0,0,1,0], solint=-1, sources =[], time
 	possm.indata = uvdata
 	possm.solint = solint
 	possm.stokes = stokes
+	possm.subarray = suba
 	possm.sources[1:] = sources
 	possm.timerang[1:] = timer
 	possm.antennas[1:] = antennas
@@ -630,7 +640,7 @@ def slices(imdata,blc,trc,outtext=''):
  #HF.print_inp_to_log(sli,'SLICE')
  sli()
 #
-def snplt(uvdata,ine='CL',antennas=[],nplots=16,inv=0,optype='PHAS',stokes='',sources=[],opcode='ALIF',plotname=False):
+def snplt(uvdata,ine='CL',antennas=[],nplots=16,inv=0,optype='PHAS',stokes='',suba=-1,sources=[],opcode='ALIF',plotname=False):
 	outn = uvdata.name
 	if plotname !=False:
 		outfile=outn+'_'+plotname+'_snplt_'+ine+str(inv)+'.ps'
@@ -642,6 +652,7 @@ def snplt(uvdata,ine='CL',antennas=[],nplots=16,inv=0,optype='PHAS',stokes='',so
 	snplt.optype = optype
 	snplt.antennas[1:] = antennas
 	snplt.stokes = stokes
+	snplt.subarray = suba
 	snplt.sources = sources
 	snplt.dotv = -1
 	snplt.do3col = 2
@@ -675,7 +686,7 @@ def snplt_check_ty(uvdata):
 		raw_input("Press Enter to continue...")
 	tv.kill()
 #
-def snsmo(uvdata,antennas=[],npiece=0,smotype='BOTH',samptype='MWF',bparm=[],cparm=[],doblank=-1,inv=0,outv=0,refant=0,dobtween=0):
+def snsmo(uvdata,antennas=[],npiece=0,smotype='BOTH',samptype='MWF',bparm=[],cparm=[],doblank=-1,inv=0,outv=0,refant=0,dobtween=0,suba=0):
 	snsmo = AIPSTask('snsmo')
 	snsmo.indata		= uvdata
 	snsmo.samptype	= samptype
@@ -687,6 +698,7 @@ def snsmo(uvdata,antennas=[],npiece=0,smotype='BOTH',samptype='MWF',bparm=[],cpa
 	snsmo.doblank		= doblank #check if 1 or -1 is needed
 	snsmo.inver			= inv
 	snsmo.outver		= outv
+	snsmo.subarray	= suba
 	snsmo.refant		= refant
 	snsmo.dobtween	= dobtween
 	HF.print_inp_to_log(snsmo,'SNSMO')
@@ -752,6 +764,8 @@ def usuba(uvdata,opcode='SCAN'):
 	usuba = AIPSTask('usuba')
 	usuba.indata = uvdata
 	usuba.opcode = opcode
+	usuba.subarray = 0
+#	usuba.frequid = -1
 	HF.print_inp_to_log(usuba,'USUBA')
 	usuba()
 #

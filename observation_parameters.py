@@ -200,21 +200,26 @@ st_snr_cut	= 4.1 #SNR cutoff during FRING
 '''
 There is the possibility to run several global fringes after each other. E.g to do a test. 
 Therefore the structure of the parameters has to be an array as seen below.
+If you want to run several global fringes after one another fill in the arrays, e.g.:
+
+	gf_timer = [[0,9,0,0,0,12,0,0],[0,12,0,0,0,24,0,0]]
+	gf_refant= ['GB','PV']
 '''
-gf_scan		= False # it is also possible to give the scan number and not the time range
-gf_timer	= [[0,0,0,0]] # please fill in the time range
-gf_cals     	= [[]]
-gf_sources  	= [[]]
-gf_aparm	= [[2,0,0,0,1,2,4.0,0,1,0]]
-gf_dparm	= [[1,400,400,1,0,0,0,1,0]]
+gf_scan			= False # it is also possible to give the scan number and not the time range
+gf_timer		= [[0,0,0,0]] # please fill in the time range
+gf_cals     = [[]]
+gf_sources  = [[]]
+gf_aparm		= [[2,0,0,0,1,2,4.0,0,1,0]]
+gf_dparm		= [[1,400,400,1,0,0,0,1,0]]
 gf_antennas	= [[antennas]]
-gf_refant	= ['GB']
-gf_dofit	= [[0]] #fit for all antennas
-gf_search	= [['GB','PV','FD','EB','LA','ON']]
+gf_refant		= ['GB']
+gf_dofit		= [[0]] #fit for all antennas
+gf_search		= [['GB','PV','FD','EB','LA','ON']]
 gf_interpol	= ['2PT']
-gf_solint	= [4.0]
+gf_solint		= [4.0]
 gf_solsub   = [3]
-gf_gainu	= [0] # to use the highest number CL table during fringe
+gf_solin		= [1]
+gf_gainu		= [0] # to use the highest number CL table during fringe
 gf_doblank  = [1]
 gf_dobtween = [0]
 #####################################
@@ -230,28 +235,37 @@ cmap_name 	= ''
 '''
 In case the SN table resulting from FRING should be smoothed with SNSMO
 Please check input parameters carefully.
+The same smoothing paramters will be applied to all resulting SN tables of global fringe above. If, e.g., 2 runs are happening:
+	starting with CL12
+	FRING CL12 -> SN10
+	SNSMO -> SN11
+	CLCAL CL12+SN11 -> CL13
+	FRING CL13 -> SN12
+	SNSMO -> SN13
+	CLCAL CL13+SN13 ->CL14
 '''
-smooth_gf_sn	= False
+smooth_gf_sn	= False #set to True if it should be smoothed
 smooth_gf_bparm	=[0,0.05,0.05,0.05,0]
 smooth_gf_cparm	=[0,0,0.05,0.05,0,0,0,100,500,0]
 smooth_gf_doblank     = 1
 smooth_gf_dobtween    = -1
 
 '''
-There are many times there are remaining jumps between IFs.
+Many times there are remaining jumps between IFs.
 By setting parameter fo ad_mpc an additional run of manual phase calibration can be done.
 Below is just an example for three additional runs
 '''
-ad_mpc_cals           	= ['','','']
-ad_mpc_sources        	= [[],[],[]]
-ad_mpc_antennas_fring 	= [[5,2,14,15],[8,11,14],[4,7]]
-ad_mpc_antennas_clcal 	= [[14,2,15],[11,8],[4]]
-ad_mpc_refant         	= [5,14,7]
-ad_mpc_timer          	= [[0,16,40,0,0,16,50,0],[0,9,45,0,0,9,52,0],[0,15,40,0,0,15,50,0]]
+do_ad_mpc							= False #set to True if it should be run
+ad_mpc_cals           = ['','','']
+ad_mpc_sources        = [[],[],[]]
+ad_mpc_antennas_fring = [[5,2,14,15],[8,11,14],[4,7]]
+ad_mpc_antennas_clcal = [[14,2,15],[11,8],[4]]
+ad_mpc_refant         = [5,14,7]
+ad_mpc_timer          = [[0,16,40,0,0,16,50,0],[0,9,45,0,0,9,52,0],[0,15,40,0,0,15,50,0]]
 ad_mpc_timer_clcal  	= [[0,0,0,0],[0,0,0,0],[0,0,0,0]]
-ad_mpc_aparm          	= [[2,0,0,0,0,2,5,0],[2,0,0,0,0,2,5,0],[2,0,0,0,0,2,5,0]]
-ad_mpc_dparm          	= [[1,0,0,1,0,0,0,1,0],[1,0,0,1,0,0,0,1,0],[1,0,0,1,0,0,0,1,0]]
-ad_mpc_solint         	= [-1,-1,-1]
+ad_mpc_aparm          = [[2,0,0,0,0,2,5,0],[2,0,0,0,0,2,5,0],[2,0,0,0,0,2,5,0]]
+ad_mpc_dparm          = [[1,0,0,1,0,0,0,1,0],[1,0,0,1,0,0,0,1,0],[1,0,0,1,0,0,0,1,0]]
+ad_mpc_solint         = [-1,-1,-1]
 
 
 
@@ -273,13 +287,14 @@ bp_bpassprm 	= [1,2,0,0,1,0,0,0,1,6,0]
 ###########################
 # Parameters for APCAL	  #
 ###########################
-apcal_dofit	= 15*[1] #asuming 15 antennas
-apcal_tyv	= 1
-apcal_tau0	= 15*[0.1]
+apcal_dofit		= 15*[1] #asuming 15 antennas
+apcal_tyv			= 1
+apcal_tau0		= 15*[0.1]
 apcal_trecvr	= 30*[100]
-apcal_calin	= weatherfile
-apcal_aparm	= [1,0,0,1,4,1,3]
-apcal_opcode	= 'GRDR'
+apcal_calin		= weatherfile
+apcal_aparm		= [1,0,0,1,4,1,3]
+apcal_opcode	= 'OPCR' # GRDR, OPCR, GRID ...
+apcal_solint	= 1e+5
 ##############################
 # Settings for finalize=True #
 ##############################
@@ -290,25 +305,27 @@ split_aparm	= [2,0,1,1]
 ####################
 possm_antennas	= antennas
 
+sys.stdout.write('Observation Parameters are loaded\n')
 ###############################################
 # SETTINGS - Which calibration to be run ### ##
 ###############################################
 #
-load_data		= False # loading the data from the correlator
-swpol			= False # applying swpol 
+load_data					= False # loading the data from the correlator
+swpol							= False # applying swpol 
 dataPreProcessing	= False # doing some processing after loading: if specified swpol,tabed. Then MSORT and INDXR.
-tabed			= False # using tabed, at the moment to correct mounting for PV
+tabed							= False # using tabed, at the moment to correct mounting for PV
 printBasicInfo		= False # print basic info as prtan, listr(scan), possm plot
 delete_cal_tables	= False # if the calibration should be started over again, set this parameter to True. All SN tables, CL>1 and FG tables will be deleted
-get_vlba_cal		= False # use vlog to print info from xxxvlba.cal file to individual files
-load_antab		= False # load antab table(s)
+get_vlba_cal			= False # use vlog to print info from xxxvlba.cal file to individual files
+load_antab				= False # load antab table(s)
+usuba							= False # run usuba with opcode='auto'
+use_usuba					= False # If usuba had been run in a previous run of the pipeline, please set this to True in order to use all subarrays in the following taks
 load_flag_info		= False # load flag fable(s)
-flag_outer_ch		= False # flag the first and last 3 channels
+flag_outer_ch			= False # flag the first and last 3 channels
 uvflg_additional	= False # apply uvflg according to fg_xxx parameters
-usuba			= False # run usuba with opcode='auto'
-correct_pang		= False # correct for PANG
-correct_eop		= False # correct for EOP. The file will automatically be downloaded. Currently the Goddard server is down, therefore a copy as linked from aips.nrao is used.
-runaccor		= False # to run ACCOR
+runaccor					= False # to run ACCOR
+correct_pang			= False # correct for PANG
+correct_eop				= False # correct for EOP. The file will automatically be downloaded. Currently the Goddard server is down, therefore a copy as linked from aips.nrao is used.
 clear_manual_phasecal	= False # to clear all tables after ACCOR to start delay calibration over again. The history file will be searched to find the last SN and CL tables as were produced by ACCOR and deletes all SN and CL tables higher then these found
 # Parameters from which cl and sn table  should be deleted
 # if the above assumption of finding the first SN and CL tables produced by manual phasecal does nto work as suspected, the last CL and SN tables that should not be deleted can be specified here, typically this should not be needed
@@ -316,19 +333,19 @@ cl_cal_before_mp	= False
 sn_cal_before_mp	= False
 #
 get_some_listings	= False # currently that is used to print several versions of MATX
-runpclod		= False # if True: PC tables are deleted if existent and PC-table is loaded
-runpccor		= False # to run PCCOR: function not tested very well, yet
+runpclod					= False # if True: PC tables are deleted if existent and PC-table is loaded
+runpccor					= False # to run PCCOR: function not tested very well, yet
 manual_phase_cal	= False # do do manual pahse cal as defined in 'mfc_' parameters
-setjy               	= False # run setij?
+setjy             = False # run setjy?
 bandpass_correction	= False # apply a bandpass
-use_bp              	= False # if the bandpass table should be used
-runacscl		= False # runacscl as recommended in the COOKBOOK after applying a bandpass
-runapcal            	= False # run apcal
-smooth_apcal_sn     	= False # smooth SN table resulting from antab
-opacity             	= False # fit for opacity
-complexbp           	= False # estimate a complex bandpass
+use_bp            = False # if the bandpass table should be used
+runacscl					= False # runacscl as recommended in the COOKBOOK after applying a bandpass
+runapcal          = False # run apcal
+smooth_apcal_sn   = False # smooth SN table resulting from antab
+opacity           = False # fit for opacity
 get_best_solint		= False # run test function to get the best solution interval
-global_fring		= False # do global fring
+complexbp         = False # estimate a complex bandpass
+global_fring			= False # do global fring
 make_fring_tests	= False # if different settings for global fringing should be tested, set this parameter. If APCAL and Finalize (split and fittp) is 'TRUE' this will be done for each CL table resulting from the different fring settings. Just give a list to the 'gf_' parameters specifying the different settings for each fring run. If make_fring_tests='False' only the highest CL table will be further processed, even if a list of entries is given to 'gf_'
-finalize		= False # finalize the calibration, by applying SPLIT and FITTP
+finalize					= False # finalize the calibration, by applying SPLIT and FITTP
 make_final_possm_plots	= False # produce a large set of POSSM plots. 
