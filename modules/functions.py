@@ -208,7 +208,7 @@ def scantime(uvdata,scan):
 	time1.extend(time2)
 	return time1
 #
-def derive_solint(uvdata,timer,refant,gainu,solint=[0.05,4],snr_cut=5,dparm=[1,400,400,1,0,0],antennas=False,plotname=''):
+def derive_solint(uvdata,timer,refant,gainu,solint=[0.05,4],snr_cut=5,dparm=[1,400,400,1,0,0],antennas=False,plotname='',aparm=[2,0,0,0,1,2,5,0],suba=0):
 	'''
 	Try to find the best solution interval for global fring.
 	The function returns a plot of solution interval versus SNR.
@@ -221,13 +221,13 @@ def derive_solint(uvdata,timer,refant,gainu,solint=[0.05,4],snr_cut=5,dparm=[1,4
 	solint: range of solution intervals to be tested
 	plotname: name of the final plot file
 	'''
-	aparm=[2,0,0,0,1,2,snr_cut,0]
-	solints=[float(x) for x in np.arange(solint[0],solint[1],0.05)]
-	snv=[]
+	aparm[6]	= snr_cut
+	solints		= [float(x) for x in np.arange(solint[0],solint[1],0.5)]
+	snv	= []
 	for solint in solints:
 		if not antennas:
 			antennas = [2,8,11,15]
-		AT.fring_global(uvdata,timer=timer,cals=[],refant=refant,gainu=gainu,solint=solint,solsub=0,solmin=0,aparm=aparm,dparm=dparm,antennas=antennas)
+		AT.fring_global(uvdata,timer=timer,cals=[],refant=refant,gainu=gainu,solint=solint,solsub=0,solmin=0,aparm=aparm,dparm=dparm,antennas=antennas,suba=suba)
 		snv.append(uvdata.table_highver('SN'))
 	#ant=[2,8,11,15]
 #	snv=range(16,63)

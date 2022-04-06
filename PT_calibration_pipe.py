@@ -156,16 +156,16 @@ if OP.dataPreProcessing:
 	AT.indxr(uvdata)
 else:
 	logger.info('No data Pre Processing (SWPOL,TABED)')
-	msortdata = [OP.outname,'MSORT',OP.outdisk,OP.outseq]
-	msortuv = AIPSUVData(*msortdata)
+	uvdata_catalog = [OP.outname,OP.outclass,OP.outdisk,OP.outseq]
+	uvdata = AIPSUVData(*uvdata_catalog)
 #	AT.indxr(msortuv)
 
-if msortuv.exists()==True:
+if uvdata.exists()==True:
 	logger.info('Msort data exists. Assume it is already TB sorted (INDXR has been run).  Will set local variable uvdata to point towards msorted data.\n')
-	uvdata = msortuv
+	#uvdata = msortuv
 	uvdata.clrstat()
 else:
-  logger.error('Something went wrong with Task MSORT \n')
+  logger.error('Something went wrong with loading the catalog. Please check the input parameters for outname, outclass, outdisk, outseq to ensure that these point to the correct catalog. \n')
   sys.exit()
 
 logger.info('Data Loaded: (%s, %s, %d, %d)\n',uvdata.name,uvdata.klass,uvdata.disk,uvdata.seq)
@@ -435,8 +435,12 @@ if OP.get_best_solint:
 		cl_hv=OP.st_gainu
 	else:
 		cl_hv= uvdata.table_highver('CL')
+	st_timer=[]
+	for i in OP.st_scan:
+		st_timer.append(AF.scantime(uvdata,i))
+
 	for i in range(len(OP.st_refant)):
-		AF.derive_solint(uvdata,timer=AF.scantime(uvdata,OP.st_scan[i]),refant=OP.st_refant[i],gainu=cl_hv,plotname=OP.st_plotname[i],antennas=OP.st_antennas)
+		AF.derive_solint(uvdata,timer=st_timer[i],refant=OP.st_refant[i],gainu=cl_hv,plotname=OP.st_plotname[i],antennas=OP.st_antennas,aparm=OP.st_aparm,suba=OP.st_suba,solint=OP.st_solint)
 
 if OP.global_fring:
 	get2n = False
