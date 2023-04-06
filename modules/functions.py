@@ -9,8 +9,8 @@ By Anne baczko@mpifr-bonn.mpg.de
 from io import StringIO
 #import time
 import os,sys,re,datetime
-import aips_tasks as AT
-import helper_functions as HF
+import VLBIcalib.modules.aips_tasks as AT
+import VLBIcalib.modules.helper_functions as HF
 import numpy as np
 import __main__ as main
 from itertools import islice
@@ -20,7 +20,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 #print('OP for main calibration are loaded')
-from extract_info_sn import *
+from VLBIcalib.modules.extract_info_sn import *
 import logging
 
 #####################################

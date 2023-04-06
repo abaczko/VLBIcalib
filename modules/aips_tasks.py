@@ -14,7 +14,7 @@ from AIPSData import AIPSUVData, AIPSImage,AIPSCat
 from Wizardry.AIPSData import AIPSUVData as WizAIPSUVData
 import time 
 import __main__ as main
-import helper_functions as HF
+import VLBIcalib.modules.helper_functions as HF
 import logging
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ def bpass (uvdata,bpv=-1,cals=[],antennas=[],gainu=0,solint=0,refant=0,bpassprm=
 	bpass.bpassprm[1:] = bpassprm
 	#for row in inputs:
 	# print row
-	#raw_input("Press Enter to continue...")
+	#input("Press Enter to continue...")
 	HF.print_inp_to_log(bpass,'BPASS')
 	bpass()
 	#return inputs
@@ -234,20 +234,20 @@ def eops(uvdata):
 	else:
 		valid = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
 		# According to http://www.aips.nrao.edu/index.shtml the goddad webserver is down. On the webside a copy can be downoaded. The path to the copy is set below.
-		#eops_file = HF.download_file('https://gemini.gsfc.nasa.gov/solve_save/usno_finals.erp','./usno_finals.erp')
-		eops_file = HF.download_file('ftp://ftp.lbo.us/pub/staff/wbrisken/EOP/usno_finals.erp','./usno_finals.erp')
+		eops_file = HF.download_file('https://gemini.gsfc.nasa.gov/solve_save/usno_finals.erp','./usno_finals.erp')
+		#eops_file = HF.download_file('ftp://ftp.lbo.us/pub/staff/wbrisken/EOP/usno_finals.erp','./usno_finals.erp')
 		if eops_file == False:
 			msg = "Run EOP with presonal 'usno_finals.erp'?" 
 			choice = None
 			while True:
 				sys.stdout.write('EOP file download failed. Either provide EOP file yourself or skip clcor(eop)\n')
-				choice = raw_input('{0} [yes/no]\n'.format(msg)).lower()
+				choice = input('{0} [yes/no]\n'.format(msg)).lower()
 				if choice in valid:
 					if valid[choice] is True:
 						isfile=False
 						while isfile is False:
 							msg2='Please provied path to file:'
-							eops_file = raw_input('{0}\n'.format(msg2))
+							eops_file = input('{0}\n'.format(msg2))
 							if(os.path.isfile(filename)):
 								isfile ==True
 							else:
@@ -683,7 +683,7 @@ def snplt_check_ty(uvdata):
 		snplt.grchan = 2
 		snplt.inputs()
 		snplt()
-		raw_input("Press Enter to continue...")
+		input("Press Enter to continue...")
 	tv.kill()
 #
 def snsmo(uvdata,antennas=[],npiece=0,smotype='BOTH',samptype='MWF',bparm=[],cparm=[],doblank=-1,inv=0,outv=0,refant=0,dobtween=0,suba=0):

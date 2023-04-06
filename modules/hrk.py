@@ -14,30 +14,29 @@ logger = logging.getLogger(__name__)
 #############################################################################
 ### functions from Hans Kloeckner ###########################################
 #############################################################################
-def loadata(infile,outname,outclass='None',outdisk=1,outseq=0,wt=0,clint=0.1,digicor=-1,doconcat=-1):
-	logger.info('Loading uvdata %s to catalog [%s,%s,%d,%d]\n',infile,outname,outclass,outdisk,outseq)
-
-	"""
-	Load a FITS file into the AIPS disk
-    
-	wt = Flagging threshold based on weights [range: 0 to 1 (flag all data)]
-	"""
-	#
-	fitld = AIPSTask('FITLD')
-	fitld.datain=str(infile)
-	fitld.douvcomp  = -1
-	fitld.digicor   = digicor
-	fitld.doconcat	= doconcat
-	fitld.wtthresh  = wt
-	fitld.outname = outname
-	fitld.clint = clint 
-	if outclass != 'None':
-		fitld.outclass  = outclass
-		fitld.outdisk   = int(outdisk)
-		fitld.outseq    = int(outseq)
-		#fitld.msgkill   = -2
-	fitld.go()
-	return[fitld.outname,fitld.outclass,int(fitld.outdisk),int(fitld.outseq)]
+def loadata(infile,outname,outclass='None',outdisk=1,outseq=0,wt=0,clint=0.1,digicor=-1,doconcat=-1,ncount=0):
+    logger.info('Loading uvdata %s to catalog [%s,%s,%d,%d]\n',infile,outname,outclass,outdisk,outseq)
+    """
+    Load a FITS file into the AIPS disk
+    wt = Flagging threshold based on weights [range: 0 to 1 (flag all data)]
+    """
+    #
+    fitld = AIPSTask('FITLD')
+    fitld.datain=str(infile)
+    fitld.douvcomp  = -1
+    fitld.digicor   = digicor
+    fitld.doconcat	= doconcat
+    fitld.wtthresh  = wt
+    fitld.outname = outname
+    fitld.clint = clint 
+    fitld.ncount = ncount
+    if outclass != 'None':
+        fitld.outclass  = outclass
+        fitld.outdisk   = int(outdisk)
+        fitld.outseq    = int(outseq)
+        #fitld.msgkill   = -2
+    fitld.go()
+    return[fitld.outname,fitld.outclass,int(fitld.outdisk),int(fitld.outseq)]
 
 def getheader(data,gethead='FREQ'):
 	"""
